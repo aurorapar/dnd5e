@@ -1019,6 +1019,10 @@ def spawnPlayer(e):
         if player.getLevel() >= 5:
             messagePlayer('!cast Spiritual Weapon {weapon} - 30 mana - Give yourself a weapon (give command)', player.index) 
             messagePlayer('!cast Curse - 50 mana - Target takes additional 3d8 damage from all sources (Wisdom save negates)', player.index)
+            
+        if player.getLevel() >= 7:
+            player.channels = (player.getLevel() - 2) / 5
+            messagePlayer('!cast Channel Divinity - Unleash a burst of Healing/Good or Damage/Evil around you (5d8, %s uses)'%player.channels, player.index)
 
 abilities = {
     'second wind',
@@ -1027,7 +1031,8 @@ abilities = {
     'sacred flame',
     'bless',
     'spiritual weapon',
-    'curse'
+    'curse',
+    'channel divinity'
 }
 
 toggles = {
@@ -1085,7 +1090,7 @@ def cast(command, index):
                             
                 if player.getClass() == cleric.name:
                 
-                    if not player.mana:
+                    if not player.mana and ability != 'channel divinity':
                         messagePlayer('You don\'t have any mana', player.index)
                         return
                     
@@ -1213,6 +1218,33 @@ def cast(command, index):
                                 messagePlayer('You have been Cursed!', target.index)
                             else:
                                 messagePlayer('Your target resists your curse!', player.index)
+                                
+                    if ability.lower() == 'channel divinity':
+                        if not player.getLevel() >= 7:
+                            return
+                        if not player.channels > 0:
+                            messagePlayer('You have no more uses of Channel Divinity', player.index)                            
+                            return
+                        
+                        player.channels -= 1
+                        player.spellCooldown = time.time()
+                        if player.alignment.lower() == 'good':
+                            for p in PlayerIter():
+                                if not p.dead and p.team == player.team and Vector.get_distance(player.origin, p.origin) < 700:
+                                    target = players.from_userid(p.userid)
+                                    hp = target.heal(dice(5,8))
+                                    if hp:
+                                        messagePlayer('Your Channel Divinity healed %s for %s HP!'%(target.name, hp), player.index)
+                                        messagePlayer('You were healed by %s\'s Divine Power'%player.name, target.index)
+                                        
+                        if player.alignment.lower() == 'evil':
+                            for p in PlayerIter():
+                                if not p.dead and p.team == player.team and Vector.get_distance(player.origin, p.origin) < 700:
+                                    target = players.from_userid(p.userid)
+                                    damage = dice(5,8)
+                                    messagePlayer('You were assaulted by %s\'s Divine Power'%player.name, target.index)
+                                    messagePlayer('Your Channel Divinity caused %s wounds to %s!'%(damage, target.name), player.index)
+                                    hurt(player, target, damage)
                         
             else:
                 messagePlayer('Your spells and abilities are on cooldown!', index)
