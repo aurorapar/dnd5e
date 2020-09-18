@@ -422,7 +422,14 @@ def dndRaceMenuSelect(menu, index, choice):
     createConfirmationMenu(choice.value, index)
 
 def dndClassMenuSelect(menu, index, choice):
-    createConfirmationMenu(choice.value, index)            
+    createConfirmationMenu(choice.value, index)     
+
+def dndPlayerInfoMenuSelect(menu, index, choice):
+    try:
+        Player(choice.value)
+        showPlayerInfo(index, choice.value)
+    except:
+        return
 
 dndRaceMenu = PagedMenu(title="D&D 5e Race Menu")
 for r in Race.races:
@@ -435,9 +442,15 @@ for cls in DNDClass.classes:
         dndClassMenu.append(PagedOption("%s"%(cls.name), cls))
 dndClassMenu.select_callback = dndClassMenuSelect
 
+dndPlayerInfoMenu = PagedMenu(title="D&D 5e Player Info Menu")
+for p in PlayerIter():
+    dndPlayerInfoMenu.append(PagedOption(p.name, p.index))
+dndPlayerInfoMenu.select_callback = dndPlayerInfoMenuSelect
+
 dndMenu = PagedMenu(title="D&D 5e Main Menu")
 dndMenu.append(PagedOption('Races', dndRaceMenu))
 dndMenu.append(PagedOption('Classes', dndClassMenu))
+dndMenu.append(PagedOption('Player Info', dndPlayerInfoMenu))
 dndMenu.append(PagedOption('Commands', None))
 dndMenu.append(PagedOption('Help', None))
 dndMenu.select_callback = dndMenuSelect
@@ -466,27 +479,6 @@ def spiderSenseLoop():
                         light.create(RecipientFilter())
     Delay(3, spiderSenseLoop)
 
-@Event('ammo_pickup')
-def pickupAmmo(e):
-    player = players.from_userid(e['userid'])
-    if not player.is_bot():
-        Delay(.1, increaseAmmo, (player,))    
-    
-def increaseAmmo(player):
-    weapon = player.primary
-    if player.hasPerk(packMule.name):
-        weapon = player.primary
-        weapon.ammo *= int(min(1, 1 + player.getPerkLevel(packMule.name) * packMule.effect))
-
-weapon_instances = WeaponDictionary()
-
-@Event('item_pickup')
-def pickupItem(e):
-    player = players.from_userid(e['userid'])    
-    if not player.is_bot():
-        pass
-        Delay(.1, extendClips, (player,) )
-        
 @EntityPreHook(EntityCondition.is_player, 'bump_weapon')
 def prePickup(stack_data):
     weapon = make_object(Entity, stack_data[1])    
@@ -500,39 +492,7 @@ def prePickup(stack_data):
         else:
             player.lastWeaponMessage = time.time()
             messagePlayer('You can not use a %s'%weaponName, player.index)
-        return False
-    
-@Event('weapon_reload')
-def reload(e):
-    player = players.from_userid(e['userid'])
-    if not player.is_bot():
-        reloadTime = player.get_datamap_property_float('m_flNextAttack') - global_vars.current_time
-        Delay(reloadTime +.1, extendClips, (player,) )
-    
-def extendClips(player):
-    '''
-    if player.hasPerk(engineer.name):
-        weapon = player.get_active_weapon()
-        try:
-            clipSize = weapon.clip
-            if weapon.is_dual_wielding:
-                clipSize *= 1.00 + .08*player.getPerkLevels(engineer.name)
-            else:
-                clipSize *= 1 + engineer.effect*player.getPerkLevels(engineer.name)
-            weapon.set_clip(int(max(weapon.clip+1,clipSize)))
-        except :
-            print("Unexpected error:")
-            pprint(sys.exc_info())
-    '''
-    pass
-
-@Event('player_jump')
-def jump(e):
-    if not getSteamid(e['userid']).startswith("BOT_"):     
-        player = players.from_userid(e['userid'])        
-        
-        #if player.hasPerk(highJump.name):
-         #   player.push(0,player.getPerkLevel(highJump.name)*highJump.effect, True)           
+        return False        
             
 #@OnPlayerRunCommand
 def on_player_run_command(player, user_cmd):
