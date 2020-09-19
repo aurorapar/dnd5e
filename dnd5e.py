@@ -224,6 +224,8 @@ class RPGPlayer(Player):
                 self.stats[cls.name] = {}
                 self.stats[cls.name]['Level'] = 1
                 self.stats[cls.name]['XP'] = 0
+        self.stats['Last Played'] = time.time()
+        self.stats['name'] = self.name
                 
     def giveXP(self, xp, reason=None):
         global database
@@ -543,6 +545,18 @@ def newDatabase():
     
             
 def saveDatabase():
+
+    purge = {}
+    purgeTime = 60 * 60 * 24 * 0 # 15 days
+    for player in database.keys():
+        if time.time() - database[player]['Last Played'] > purgeTime:
+            purge[player] = database[player]['name']
+    for player,name in purge.items():
+        x = database[player]['Last Played']
+        del(database[player])
+        messageServer('%s has been deleted for inactivity'%name)
+        messageServer('Last played: %s'%time.ctime(x))
+
     info = plugin_manager.get_plugin_info('dnd5e')
     with open(databaseLocation, 'w') as db:
         db.write(json.dumps(database))
@@ -586,6 +600,7 @@ def endedRound(e):
     for player in PlayerIter():
         if e['winner'] == player.team_index:
             players.from_userid(player.userid).giveXP(roundWinXP, "wining the round!")    
+    saveDatabase()
             
 @Event('player_say')
 def playerSay(e):
