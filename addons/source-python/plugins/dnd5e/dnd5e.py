@@ -224,6 +224,8 @@ class RPGPlayer(Player):
                 self.stats[cls.name] = {}
                 self.stats[cls.name]['Level'] = 1
                 self.stats[cls.name]['XP'] = 0
+        self.stats['Last Played'] = time.time()
+        self.stats['name'] = self.name
                 
     def giveXP(self, xp, reason=None):
         global database
@@ -422,7 +424,14 @@ def dndRaceMenuSelect(menu, index, choice):
     createConfirmationMenu(choice.value, index)
 
 def dndClassMenuSelect(menu, index, choice):
-    createConfirmationMenu(choice.value, index)            
+    createConfirmationMenu(choice.value, index)     
+
+def dndPlayerInfoMenuSelect(menu, index, choice):
+    try:
+        Player(choice.value)
+        showPlayerInfo(index, choice.value)
+    except:
+        return
 
 dndRaceMenu = PagedMenu(title="D&D 5e Race Menu")
 for r in Race.races:
@@ -435,9 +444,15 @@ for cls in DNDClass.classes:
         dndClassMenu.append(PagedOption("%s"%(cls.name), cls))
 dndClassMenu.select_callback = dndClassMenuSelect
 
+dndPlayerInfoMenu = PagedMenu(title="D&D 5e Player Info Menu")
+for p in PlayerIter():
+    dndPlayerInfoMenu.append(PagedOption(p.name, p.index))
+dndPlayerInfoMenu.select_callback = dndPlayerInfoMenuSelect
+
 dndMenu = PagedMenu(title="D&D 5e Main Menu")
 dndMenu.append(PagedOption('Races', dndRaceMenu))
 dndMenu.append(PagedOption('Classes', dndClassMenu))
+dndMenu.append(PagedOption('Player Info', dndPlayerInfoMenu))
 dndMenu.append(PagedOption('Commands', None))
 dndMenu.append(PagedOption('Help', None))
 dndMenu.select_callback = dndMenuSelect
@@ -466,27 +481,6 @@ def spiderSenseLoop():
                         light.create(RecipientFilter())
     Delay(3, spiderSenseLoop)
 
-@Event('ammo_pickup')
-def pickupAmmo(e):
-    player = players.from_userid(e['userid'])
-    if not player.is_bot():
-        Delay(.1, increaseAmmo, (player,))    
-    
-def increaseAmmo(player):
-    weapon = player.primary
-    if player.hasPerk(packMule.name):
-        weapon = player.primary
-        weapon.ammo *= int(min(1, 1 + player.getPerkLevel(packMule.name) * packMule.effect))
-
-weapon_instances = WeaponDictionary()
-
-@Event('item_pickup')
-def pickupItem(e):
-    player = players.from_userid(e['userid'])    
-    if not player.is_bot():
-        pass
-        Delay(.1, extendClips, (player,) )
-        
 @EntityPreHook(EntityCondition.is_player, 'bump_weapon')
 def prePickup(stack_data):
     weapon = make_object(Entity, stack_data[1])    
@@ -500,39 +494,7 @@ def prePickup(stack_data):
         else:
             player.lastWeaponMessage = time.time()
             messagePlayer('You can not use a %s'%weaponName, player.index)
-        return False
-    
-@Event('weapon_reload')
-def reload(e):
-    player = players.from_userid(e['userid'])
-    if not player.is_bot():
-        reloadTime = player.get_datamap_property_float('m_flNextAttack') - global_vars.current_time
-        Delay(reloadTime +.1, extendClips, (player,) )
-    
-def extendClips(player):
-    '''
-    if player.hasPerk(engineer.name):
-        weapon = player.get_active_weapon()
-        try:
-            clipSize = weapon.clip
-            if weapon.is_dual_wielding:
-                clipSize *= 1.00 + .08*player.getPerkLevels(engineer.name)
-            else:
-                clipSize *= 1 + engineer.effect*player.getPerkLevels(engineer.name)
-            weapon.set_clip(int(max(weapon.clip+1,clipSize)))
-        except :
-            print("Unexpected error:")
-            pprint(sys.exc_info())
-    '''
-    pass
-
-@Event('player_jump')
-def jump(e):
-    if not getSteamid(e['userid']).startswith("BOT_"):     
-        player = players.from_userid(e['userid'])        
-        
-        #if player.hasPerk(highJump.name):
-         #   player.push(0,player.getPerkLevel(highJump.name)*highJump.effect, True)           
+        return False        
             
 #@OnPlayerRunCommand
 def on_player_run_command(player, user_cmd):
@@ -583,6 +545,18 @@ def newDatabase():
     
             
 def saveDatabase():
+
+    purge = {}
+    purgeTime = 60 * 60 * 24 * 15 # 15 days
+    for player in database.keys():
+        if time.time() - database[player]['Last Played'] > purgeTime:
+            purge[player] = database[player]['name']
+    for player,name in purge.items():
+        x = database[player]['Last Played']
+        del(database[player])
+        messageServer('%s has been deleted for inactivity'%name)
+        messageServer('Last played: %s'%time.ctime(x))
+
     info = plugin_manager.get_plugin_info('dnd5e')
     with open(databaseLocation, 'w') as db:
         db.write(json.dumps(database))
@@ -626,6 +600,7 @@ def endedRound(e):
     for player in PlayerIter():
         if e['winner'] == player.team_index:
             players.from_userid(player.userid).giveXP(roundWinXP, "wining the round!")    
+    saveDatabase()
             
 @Event('player_say')
 def playerSay(e):
@@ -1019,6 +994,10 @@ def spawnPlayer(e):
         if player.getLevel() >= 5:
             messagePlayer('!cast Spiritual Weapon {weapon} - 30 mana - Give yourself a weapon (give command)', player.index) 
             messagePlayer('!cast Curse - 50 mana - Target takes additional 3d8 damage from all sources (Wisdom save negates)', player.index)
+            
+        if player.getLevel() >= 7:
+            player.channels = (player.getLevel() - 2) / 5
+            messagePlayer('!cast Channel Divinity - Unleash a burst of Healing/Good or Damage/Evil around you (5d8, %s uses)'%player.channels, player.index)
 
 abilities = {
     'second wind',
@@ -1027,7 +1006,8 @@ abilities = {
     'sacred flame',
     'bless',
     'spiritual weapon',
-    'curse'
+    'curse',
+    'channel divinity'
 }
 
 toggles = {
@@ -1085,7 +1065,7 @@ def cast(command, index):
                             
                 if player.getClass() == cleric.name:
                 
-                    if not player.mana:
+                    if not player.mana and ability != 'channel divinity':
                         messagePlayer('You don\'t have any mana', player.index)
                         return
                     
@@ -1213,6 +1193,33 @@ def cast(command, index):
                                 messagePlayer('You have been Cursed!', target.index)
                             else:
                                 messagePlayer('Your target resists your curse!', player.index)
+                                
+                    if ability.lower() == 'channel divinity':
+                        if not player.getLevel() >= 7:
+                            return
+                        if not player.channels > 0:
+                            messagePlayer('You have no more uses of Channel Divinity', player.index)                            
+                            return
+                        
+                        player.channels -= 1
+                        player.spellCooldown = time.time()
+                        if player.alignment.lower() == 'good':
+                            for p in PlayerIter():
+                                if not p.dead and p.team == player.team and Vector.get_distance(player.origin, p.origin) < 700:
+                                    target = players.from_userid(p.userid)
+                                    hp = target.heal(dice(5,8))
+                                    if hp:
+                                        messagePlayer('Your Channel Divinity healed %s for %s HP!'%(target.name, hp), player.index)
+                                        messagePlayer('You were healed by %s\'s Divine Power'%player.name, target.index)
+                                        
+                        if player.alignment.lower() == 'evil':
+                            for p in PlayerIter():
+                                if not p.dead and p.team == player.team and Vector.get_distance(player.origin, p.origin) < 700:
+                                    target = players.from_userid(p.userid)
+                                    damage = dice(5,8)
+                                    messagePlayer('You were assaulted by %s\'s Divine Power'%player.name, target.index)
+                                    messagePlayer('Your Channel Divinity caused %s wounds to %s!'%(damage, target.name), player.index)
+                                    hurt(player, target, damage)
                         
             else:
                 messagePlayer('Your spells and abilities are on cooldown!', index)
