@@ -547,7 +547,7 @@ def newDatabase():
 def saveDatabase():
 
     purge = {}
-    purgeTime = 60 * 60 * 24 * 0 # 15 days
+    purgeTime = 60 * 60 * 24 * 15 # 15 days
     for player in database.keys():
         if time.time() - database[player]['Last Played'] > purgeTime:
             purge[player] = database[player]['name']
