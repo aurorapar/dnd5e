@@ -90,7 +90,7 @@ def dice(number, sides):
         total += random.randint(1,sides)
     return total
 
-def diceCheck(check, player):
+def diceCheck(check, player, attacker):
     #Check should be a tuple of (Int, Str)
     #                           Save, Type
     
@@ -608,9 +608,11 @@ def endedRound(e):
         if e['winner'] == player.team_index:
             players.from_userid(player.userid).giveXP(roundWinXP, "wining the round!")    
     saveDatabase()
-    thread = GameThread(target=saveWebDB())
-    Delay(5, thread.start)
-    #Delay(2, saveWebDB, ())
+    
+@Event('server_spawn')
+def server_spawn(e):
+    
+    saveWebDB()    
     
 @SayFilter
 def filterChat(command, index, team_only):
@@ -1307,7 +1309,6 @@ class DNDDBXP(Base):
     
     
 def saveWebDB(first=None):
-    print(time.ctime())
 
     jsonDB = {}
     with open(databaseLocation, 'r') as f:
@@ -1341,12 +1342,12 @@ def saveWebDB(first=None):
             #print('%s does not exist'%dndclass)
             newClass = DNDDBClass(NAME=dndclass.name)
             session.add(newClass)
-    session.commit()
+    thread = GameThread(target=session.commit())
+    thread.start()
     
     for steamid in jsonDB.keys():
         t = datetime.datetime.fromtimestamp(jsonDB[steamid]['Last Played'])
         if not session.query(DNDDBUser.STEAMID).filter_by(STEAMID=steamid).scalar():
-            print("Adding %s"%jsonDB[steamid]['name'])
             
             newPlayer = DNDDBUser(
                 STEAMID=steamid, 
@@ -1372,7 +1373,6 @@ def saveWebDB(first=None):
                 session.add(newXP)
                 session.commit()
         else:
-            print("Updating %s"%jsonDB[steamid]['name'])        
             
             session.query(DNDDBUser).filter(
                     DNDDBUser.STEAMID == steamid
@@ -1399,4 +1399,6 @@ def saveWebDB(first=None):
                     }, 
                     synchronize_session='fetch')
                 session.commit()
+                thread = GameThread(target=session.commit())
+                thread.start()
     messageServer('Web Info Updated')
