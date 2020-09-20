@@ -24,6 +24,7 @@ from memory.hooks import PreHook
 from os.path import join, dirname, abspath
 from listeners import OnPlayerRunCommand
 from listeners.tick import Delay
+from listeners.tick import GameThread
 from weapons.dictionary import WeaponDictionary
 from weapons.entity import Weapon
 from engines.server import global_vars
@@ -34,9 +35,14 @@ from menus import SimpleMenu
 from menus import Text
 from menus import PagedMenu
 from menus import PagedOption
+from commands.say import SayFilter
 from commands.client import ClientCommand
 from commands import CommandReturn
 from itertools import chain 
+import sqlalchemy as sql
+from sqlalchemy.sql import select
+from sqlalchemy.sql import update
+from sqlalchemy.ext.declarative import declarative_base
 import math
 import random
 import os
@@ -44,6 +50,7 @@ import sys
 import shutil
 import json
 import time
+import datetime
 
 database = {}
 databaseLocation = join(dirname(__file__), "dnd5e.db")
@@ -601,7 +608,17 @@ def endedRound(e):
         if e['winner'] == player.team_index:
             players.from_userid(player.userid).giveXP(roundWinXP, "wining the round!")    
     saveDatabase()
-            
+    thread = GameThread(target=saveWebDB())
+    Delay(5, thread.start)
+    #Delay(2, saveWebDB, ())
+    
+@SayFilter
+def filterChat(command, index, team_only):
+    if index == 0:
+        if not 'D&D' in command.command_string:
+            SayText2('\x09[Dungeon Master]\x01 %s'%command.command_string).send()
+            return False
+    
 @Event('player_say')
 def playerSay(e):
     global database
@@ -1252,4 +1269,134 @@ def cast(command, index):
     
     return CommandReturn.BLOCK
     
+Base = declarative_base()
+class DNDDBUser(Base):
+    __tablename__ = 'DNDUSER'
     
+    ID = sql.Column('ID', sql.Integer(), primary_key=True)
+    STEAMID = sql.Column('STEAMID', sql.String(25))
+    NAME = sql.Column('NAME', sql.String(30))
+    LAST_PLAYED = sql.Column('LAST_PLAYED', sql.DateTime)
+    
+    def __repr__(self):
+        return "<DNDUser(STEAMID='{0}', NAME='{1}', LAST_PLAYED='{2}')>".format(
+                            self.STEAMID, self.NAME, self.LAST_PLAYED)
+
+class DNDDBClass(Base):
+    __tablename__ = 'DNDCLASS'
+    
+    ID = sql.Column('ID', sql.Integer(), primary_key=True)
+    NAME = sql.Column('NAME', sql.String(25))
+    
+    def __repr__(self):
+        return "<DNDClass(NAME='{0}')>".format(
+            self.NAME)
+
+class DNDDBXP(Base):
+    __tablename__ = 'DNDXP'
+    
+    ID = sql.Column('ID', sql.Integer(), primary_key=True)     
+    DNDUSERID = sql.Column('DNDUSERID', sql.Integer())
+    DNDCLASSID = sql.Column('DNDCLASSID', sql.Integer())
+    LEVEL = sql.Column('LEVEL', sql.Integer())
+    XP = sql.Column('XP', sql.Integer())
+        
+    def __repr__(self):
+        return "<DNDXP(DNDUSERID='{0}', DNDCLASSID='{1}', LEVEL='{2}', XP='{3}')>".format(
+            self.DNDUSERID, self.DNDCLASSID, self.LEVEL, self.XP)
+    
+    
+def saveWebDB(first=None):
+    print(time.ctime())
+
+    jsonDB = {}
+    with open(databaseLocation, 'r') as f:
+        jsonDB = json.load(f)
+        
+    dbCredentialsFile = join(dirname(__file__), 'databasecreds.txt')
+    if not os.path.exists(dbCredentialsFile):
+        return
+        
+    with open(dbCredentialsFile, 'r') as f:
+        host = f.readline().strip()
+        user = f.readline().strip()
+        password = f.readline().strip()
+        db = f.readline().strip()        
+    
+    messageServer('trying to connect')
+    engine = sql.create_engine('mysql+pymysql://%s:%s@%s/%s'%(user,password,host,db))
+    connection = engine.connect()    
+        
+    metadata = sql.MetaData()
+    
+    Base.metadata.create_all(engine)
+
+    Session = sql.orm.sessionmaker()
+    Session.configure(bind=engine)
+    session = Session()
+    
+    for dndclass in DNDClass.classes:
+        
+        if not session.query(DNDDBClass.NAME).filter_by(NAME=dndclass.name).scalar():
+            #print('%s does not exist'%dndclass)
+            newClass = DNDDBClass(NAME=dndclass.name)
+            session.add(newClass)
+    session.commit()
+    
+    for steamid in jsonDB.keys():
+        t = datetime.datetime.fromtimestamp(jsonDB[steamid]['Last Played'])
+        if not session.query(DNDDBUser.STEAMID).filter_by(STEAMID=steamid).scalar():
+            print("Adding %s"%jsonDB[steamid]['name'])
+            
+            newPlayer = DNDDBUser(
+                STEAMID=steamid, 
+                NAME=jsonDB[steamid]['name'], 
+                LAST_PLAYED=t
+            )
+            
+            session.add(newPlayer)
+            session.commit()
+            
+            for c in DNDClass.classes:
+                cls = c.name
+                    
+                dndclass = session.query(DNDDBClass).filter_by(NAME=cls).first()
+                
+                newXP = DNDDBXP(
+                    DNDUSERID=newPlayer.ID, 
+                    DNDCLASSID=dndclass.ID, 
+                    LEVEL=jsonDB[steamid][cls]['Level'], 
+                    XP=jsonDB[steamid][cls]['XP']
+                )
+                
+                session.add(newXP)
+                session.commit()
+        else:
+            print("Updating %s"%jsonDB[steamid]['name'])        
+            
+            session.query(DNDDBUser).filter(
+                    DNDDBUser.STEAMID == steamid
+                ).update(
+                { 
+                    DNDDBUser.NAME : jsonDB[steamid]['name'], 
+                    DNDDBUser.LAST_PLAYED : t 
+                }, 
+                synchronize_session='fetch')
+            session.commit()
+            
+            for c in DNDClass.classes:
+                cls = c.name
+                dnduser = session.query(DNDDBUser).filter_by(STEAMID=steamid).first()
+                dndclass = session.query(DNDDBClass).filter_by(NAME=cls).first()
+                
+                session.query(DNDDBXP).filter(
+                        DNDDBXP.DNDUSERID == dnduser.ID, 
+                        DNDDBXP.DNDCLASSID == dndclass.ID
+                    ).update(
+                    {
+                        DNDDBXP.LEVEL : jsonDB[steamid][cls]['Level'],
+                        DNDDBXP.XP : jsonDB[steamid][cls]['XP'],
+                    }, 
+                    synchronize_session='fetch')
+                session.commit()
+    messageServer('Web Info Updated')
