@@ -5,15 +5,19 @@ from events.hooks import PreEvent
 from players.helpers import userid_from_index
 from players.helpers import index_from_userid
 from players.helpers import uniqueid_from_index
+from players.helpers import userid_from_edict
 from players.constants import PlayerButtons
 from players.entity import Player
 from players.dictionary import PlayerDictionary
 from entities.entity import Entity
 from entities.entity import BaseEntity
-from entities.hooks import EntityCondition, EntityPreHook
+from entities.hooks import EntityCondition 
+from entities.hooks import EntityPreHook
 from entities import TakeDamageInfo
+from entities import CheckTransmitInfo
 from entities.helpers import index_from_inthandle
 from entities.helpers import index_from_basehandle
+from entities.helpers import index_from_edict
 from mathlib import Vector
 from mathlib import NULL_VECTOR
 from filters.entities import EntityIter
@@ -101,14 +105,14 @@ def diceCheck(check, player, attacker):
     
     if check[1] in player.getSaves():
         result = random.randint(1,20) + (self.getLevel() - 1) / 4 + 2 + bonus > check[0]        
-        if hasattr(player, 'indomitable'):
+        if hasattr(player, 'indomitable') or (check[1] == 'Dexterity' and player.getClass() == 'Rogue' and player.getLevel() >= 5):
             if not result and player.indomitable > 1:
                 player.indomitable -= 1
                 return random.randint(1,20) + (self.getLevel() - 1) / 4 + 2 + bonus > check[0]
         return result
         
     result = random.randint(1,20) + bonus > check[0]
-    if hasattr(player, 'indomitable'):
+    if hasattr(player, 'indomitable') or (check[1] == 'Dexterity' and player.getClass() == 'Rogue' and player.getLevel() >= 5):
         if not result and player.indomitable > 1:
             player.indomitable -= 1
             return random.randint(1,20) + bonus > check[0]
@@ -223,7 +227,7 @@ class RPGPlayer(Player):
             self.setClass(DNDClass.defaultClass.name)
             self.setRace(Race.defaultRace.name)
             self.stats['Gold'] = 0
-        self.setDefaults()
+        self.setDefaults()    
         
     def setDefaults(self):
         for cls in DNDClass.classes:
@@ -378,6 +382,13 @@ class RPGPlayer(Player):
         self.buff = False
         self.curse = False
         
+    def stealthed(self):
+        if self.dead:
+            return False
+        if not self.getClass() == rogue.name:
+            return False
+        return time.time() - self.stealth > (6.225 - (4.5/20)*self.getLevel())
+        
         
 players = PlayerDictionary(RPGPlayer)
 
@@ -425,6 +436,7 @@ def createConfirmationMenu(obj, index):
 
 def dndMenuSelect(menu, index, choice):    
     if choice.value:
+        print('Picked %s %s'%(choice, choice.value))
         choice.value.send(index)    
     
 def dndRaceMenuSelect(menu, index, choice):
@@ -439,6 +451,7 @@ def dndPlayerInfoMenuSelect(menu, index, choice):
         showPlayerInfo(index, choice.value)
     except:
         return
+    
 
 dndRaceMenu = PagedMenu(title="D&D 5e Race Menu")
 for r in Race.races:
@@ -502,23 +515,6 @@ def prePickup(stack_data):
             player.lastWeaponMessage = time.time()
             messagePlayer('You can not use a %s'%weaponName, player.index)
         return False        
-            
-#@OnPlayerRunCommand
-def on_player_run_command(player, user_cmd):
-    player = database.from_userid(player.userid)    
-    if player.hasPerk(hundredM.name):
-        if user_cmd.buttons & PlayerButtons.SPEED:
-            player.speed = 2.5 + player.getPerkLevel(hundredM.name)*hundredM.effect
-            pass
-        else:
-            player.speed = 1
-            
-    if player.hasPerk(marathon.name):
-        if user_cmd.buttons & PlayerButtons.FORWARD:
-            player.speed = 1 + player.getPerkLevel(marathon.name)*marathon.effect
-    
-    if user_cmd.buttons & PlayerButtons.USE:
-        pass
 
 def load():
     global players
@@ -526,6 +522,7 @@ def load():
     SayText2("%s - %s has been loaded"%(info.verbose_name,info.version)).send()
     print(("%s - %s has been loaded"%(info.verbose_name,info.version)))
     loadDatabase()
+    loopStealth()
     players = PlayerDictionary(RPGPlayer)
         
     
@@ -733,6 +730,14 @@ def getNearbyTargets(victim, proximity):
                 if Vector.get_dinstance(locationOne, locationTwo) <= proximity:
                     targets.append(ent)
     return targets
+    
+def attackerBehindVictim(attacker, victim, maxDegreeDifference):
+    a = attacker.get_view_angle()[1]
+    b = victim.get_view_angle()[1]
+    p = abs(a-b) % 360
+    if p > 180:
+        p = 360 - p
+    return p <= maxDegreeDifference
         
 @Event('player_hurt')
 def damagePlayer(e):
@@ -743,6 +748,12 @@ def damagePlayer(e):
         victim = players.from_userid(e['userid'])
         weapon = attacker.get_active_weapon()
         damage = int(e['dmg_health'])
+        
+        if not victim.dead and victim.getClass() == rogue.name:
+            if victim.stealthed():
+                messagePlayer('You are no longer stealthed!', victim.index)
+            victim.stealth = time.time()
+            victim.stealthMessage = False
         
         if victim.team_index != attacker.team_index:
         
@@ -784,6 +795,23 @@ def damagePlayer(e):
                                 messagePlayer('Your disarm has failed!', attacker.index)
                             attacker.disarms -= 1
                             attacker.disarm = False
+                            
+                if attacker.getClass() == rogue.name and attacker.getLevel() >= 3:
+                
+                    if Vector.get_distance(attacker.origin, victim.origin) < 150:
+                        if 11+attacker.getProficiencyBonus() > victim.getProficiencyBonus() + 8 + (3 if 'Wisdom' in victim.getSaves() else 0):
+                            weapon = victim.get_active_weapon()
+                            weaponName = weapon.classname.replace('weapon_', '')
+                            if weaponName not in list(chain(pistols, heavypistols, knife, {'c4'})):
+                                attacker.give_named_item(weapon.classname)
+                                weapon.remove()
+                            if victim.cash > 200:
+                                moneyLoss = min(victim.cash, random.randint(1,200))
+                                victim.cash -= moneyLoss
+                                attacker.cash += moneyLoss
+                                
+                                messagePlayer('You robbed someone!', attacker.index)
+                                messagePlayer('You were robbed by a theif!', victim.index)
                         
 def giveItem(player, weaponName):
     player.give_named_item(weaponName)
@@ -863,17 +891,28 @@ def formatDamage(attacker, victim, damage, weapon=None):
                 bonusDamageMult += .05
             if attacker.getLevel() >= 15:
                 critBonus += 1
+                
+        if attacker.getClass() == rogue.name:
+            if attacker.stealthed() or (attacker.getLevel() >= 20 and attackerBehindVictim(attacker, victim, 50)):
+                sneakAttack = dice(int((attacker.getLevel()+3)/2 - 1), 6)
+                damage += sneakAttack
+                messagePlayer('You dealt %s damage with a sneak attack!'%sneakAttack, attacker.index)            
+                attacker.stealth = time.time()
+                attacker.stealthMessage = False
          
         damage *= bonusDamageMult 
          
-        if random.randint(1+critBonus,20) >= 20:
-            damage *= 2
-            damage = int(damage)
-            messagePlayer('You dealt a critical hit for %s damage!'%damage, attacker.index)
-            messagePlayer('You were dealt a critical hit for %s damage!'%damage, victim.index)
-            attacker.crit = True
-        else:
-            attacker.crit = False
+        if not (victim.getClass() == rogue.name and victim.getLevel() >= 11):
+            if random.randint(1+critBonus,20) >= 20:
+                damage *= 2
+                damage = int(damage)
+                messagePlayer('You dealt a critical hit for %s damage!'%damage, attacker.index)
+                messagePlayer('You were dealt a critical hit for %s damage!'%damage, victim.index)
+                attacker.crit = True
+            else:
+                attacker.crit = False
+                
+                    
             
     #Cursed targets DO scale spell damage
     if hasattr(victim, 'curse'):
@@ -908,6 +947,7 @@ def killedPlayer(e):
 @PreEvent('weapon_fire')
 def weapon_fire_pre(event):
     player = players.from_userid(event['userid'])
+   
     '''
     if player.hasPerk(fingerGuns.name):
         weapon = weapon_instances.from_inthandle(player.active_weapon_handle)
@@ -923,6 +963,9 @@ def weapon_fire_pre(event):
 def weapon_fire(event):
     player = players.from_userid(event['userid'])
     weapon = player.get_active_weapon()
+    
+    if player.stealthed():
+        Delay(.05, unstealth, (player,))
     '''
     if weapon.index in spawnedWeapons:
         weapon.ammo = weapon.clip * 2
@@ -930,6 +973,11 @@ def weapon_fire(event):
     if player.hasPerk("Finger Guns"):
         player.delay(0, weapon_fire_post, (player,))
     '''
+    
+def unstealth(player):
+    player.stealth = time.time()
+    messagePlayer('You came out of stealth!', player.index)
+    player.stealthMessage = False
     
 weapon_fire_post_properties = (
         # Both of these are used for reducing the aimpunch / viewpunch after
@@ -954,6 +1002,93 @@ def weapon_fire_post(player):
     weapon.set_datamap_property_float('m_flNextPrimaryAttack', next_attack)
     player.set_datamap_property_float('m_flNextAttack', cur_time)
     
+def loopStealth():
+    try:
+        for p in PlayerIter():
+            player = players.from_userid(p.userid)
+            if checkStealth(player):
+                for v in PlayerIter():    
+                
+                    viewer = players.from_userid(v.userid)
+
+                    if viewer.get_team() == player.get_team():
+                        break
+                     
+                    if viewer.dead or player.dead:
+                        break
+                    
+                    perceptionCheck(viewer, player)  
+    except:
+        pass
+    Delay(.05, loopStealth)
+    
+def perceptionCheck(viewer, player):    
+    print('perception check')
+    if player.stealthed():
+        if not viewer in player.stealthChecks.keys():
+            player.stealthChecks[viewer] = time.time() - 4
+        
+        if time.time() - player.stealthChecks[viewer] > 3:
+            distance = Vector.get_distance(viewer.get_eye_location(), player.get_eye_location())
+            if diceCheck((11 + player.getProficiencyBonus() + distance/750, 'Wisdom'), player, viewer):
+                messagePlayer('You have found a Rogue in hiding! You alerted your team!', viewer.index)
+                messagePlayer('You were spotted!', player.index)
+                unstealth(player)
+            player.stealthChecks[viewer] = time.time()
+        
+def checkStealth(player):    
+    
+    if player.stealthed():   
+        if not player.stealthMessage:
+            messagePlayer('You are now stealthed', player.index)
+        player.color = Color(255,255,255).with_alpha(0)
+        player.stealthMessage = True
+        return True
+        
+    else:
+        player.color = Color(255,255,255).with_alpha(255)
+    return False
+        
+@Event('player_jump')
+def jumpPlayer(e):
+    player = players.from_userid(e['userid'])
+    if not player.dead and player.getClass() == rogue.name:
+        if player.stealthed():
+            messagePlayer('You are no longer stealthed!', player.index)
+        player.stealth = time.time()
+        player.stealthMessage = False
+        
+@OnPlayerRunCommand
+def on_player_run_command(player, user_cmd):
+    player = players.from_userid(player.userid)
+    
+    if not player.is_bot():
+        if player.getClass() == rogue.name and player.getLevel() > 3:
+            
+            if user_cmd.buttons & PlayerButtons.SPEED:
+                if player.endurance > 0:
+                    if player.stealthed():
+                        player.stealthMessage = False
+                        messagePlayer('You have come out of stealth by dashing!', player.index)
+                    player.endurance -= (time.time() - player.lastTimeTick)
+                    player.speed = 2.5
+                    player.dashCooldown = time.time()
+                    player.stealth = time.time()
+                    player.dashMessage = False
+                else:
+                    player.speed = 1
+            else:
+                player.speed = 1
+                if time.time() - player.dashCooldown > 6:
+                    if player.endurance < 3:
+                        player.endurance += min(3, time.time() - player.lastTimeTick)   
+                    else:
+                        if not player.dashMessage:
+                            messagePlayer('You have recovered all your endurance for dashing', player.index)
+                            player.dashMessage = True
+                
+            player.lastTimeTick = time.time()
+        
 @Event('player_spawn')
 def spawnPlayer(e):
     player = players.from_userid(e['userid'])
@@ -1017,6 +1152,30 @@ def spawnPlayer(e):
         if player.getLevel() >= 7:
             player.channels = (player.getLevel() - 2) / 5
             messagePlayer('!cast Channel Divinity - Unleash a burst of Healing/Good or Damage/Evil around you (5d8, %s uses)'%player.channels, player.index)
+            
+    if player.getClass() == rogue.name:
+        player.stealth = time.time() - 7
+        player.stealthMessage = False
+        player.stealthChecks = {}
+        messagePlayer('You are stealthed. After shooting, jumping, using an ability, or being shot, you restealth after {:.2f} seconds'.format(6.225 - player.getLevel()*(4.5/20)), player.index)
+        messagePlayer('While stealthed, you can Sneak Attack (%sd6 SA dice)'%int((player.getLevel()+3)/2 - 1), player.index)
+        
+        if player.getLevel() >= 3:
+            player.endurance = 3 + (player.getLevel() - 3) * (3/17)
+            player.dashCooldown = time.time() - 4
+            player.lastTimeTick = time.time()
+            player.dashMessage = False            
+            messagePlayer('You can now dash! Hold your walk key to run! (3s)', player.index)
+            messagePlayer('You can now steal money and guns from your opponent! Get close and attack!', player.index)
+            
+        if player.getLevel() >= 5:
+            messagePlayer('You are Evasive and have advantage on Dexterity saves!', player.index)
+            
+        if player.getLevel() >= 11:
+            messagePlayer('You are Elusive and can not be crit!', player.index)
+            
+        if player.getLevel() >= 20:
+            messagePlayer('You are an Assassin! Sneak Attack players not facing you!', player.index)
 
 abilities = {
     'second wind',
