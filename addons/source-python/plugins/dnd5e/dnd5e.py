@@ -68,9 +68,9 @@ debugValue = True
 # XP Values
 killXP = 10
 headshotXP = 14
-plantBombXP = 30
+plantBombXP = 25
 defuseBombXP = 50
-explodedBombXP = 50
+explodedBombXP = 25
 roundWinXP = 50
 rescueXP = 10
 humanXP = 1.1
@@ -244,6 +244,7 @@ class RPGPlayer(Player):
         global database
         self.setDefaults()
         
+        
         self.stats[self.getClass()]['XP'] += xp
         message = "\x06You have earned %s XP"%xp
         if reason:
@@ -252,6 +253,11 @@ class RPGPlayer(Player):
             message += "!"            
         message += " %s/%sXP"%(self.getXP(), self.getLevel()*1000)
         messagePlayer(message, self.index)
+        
+        if self.getRace() == human.name:
+            bonusXP = int(xp * humanXP - xp)
+            self.stats[self.getClass()]['XP'] += bonusXP
+            messagePlayer("\x06You have earned %s XP for being a Human"%bonusXP, self.index)
         
         if self.getLevel() < 20:
             xpNeeded = self.getLevel() * 1000
@@ -600,6 +606,20 @@ def playerActivate(e):
     if steamid in database:
         players.from_userid(e['userid']).stats = database[getSteamid(e['userid'])]
         
+@Event('bomb_defused')
+def defusedBomb(e):
+    player = players.from_userid(e['userid'])
+    player.giveXP(defuseBombXP, 'defusing the bomb!')
+    
+@Event('bomb_exploded')
+def defusedBomb(e):
+    player = players.from_userid(e['userid'])
+    player.giveXP(explodedBombXP, 'protecting the bomb!')
+        
+@Event('bomb_planted')
+def defusedBomb(e):
+    player = players.from_userid(e['userid'])
+    player.giveXP(plantBombXP, 'planting the bomb!')
         
 @Event('round_end')
 def endedRound(e):
