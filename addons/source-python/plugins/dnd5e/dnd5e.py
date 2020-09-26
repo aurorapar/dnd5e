@@ -49,6 +49,7 @@ from sqlalchemy.sql import select
 from sqlalchemy.sql import update
 from sqlalchemy.ext.declarative import declarative_base
 from engines.precache import Model
+from engines.sound import Sound
 import math
 import random
 import os
@@ -78,6 +79,21 @@ humanXP = 1.1
 cterrorists = 2
 terrorists = 3
 
+terroristModels = ['tm_anarchist.mdl','tm_anarchist_varianta.mdl','tm_anarchist_variantb.mdl','tm_anarchist_variantc.mdl','tm_anarchist_variantd.mdl',
+                'tm_balkan.mdl', 'tm_balkan_varianta.mdl','tm_balkan_variantb.mdl','tm_balkan_variantc.mdl','tm_balkan_variantd.mdl',
+                'tm_leet.mdl', 'tm_leet_varianta.mdl','tm_leet_variantb.mdl','tm_leet_variantc.mdl','tm_leet_variantd.mdl',
+                'tm_phoenix.mdl', 'tm_phoenix_varianta.mdl','tm_phoenix_variantb.mdl','tm_phoenix_variantc.mdl','tm_phoenix_variantd.mdl',
+                'tm_pirate.mdl', 'tm_pirate_varainta.mdl','tm_pirate_varaintb.mdl','tm_pirate_varaintc.mdl','tm_pirate_varaintd.mdl',
+                'tm_professional.mdl', 'tm_professional_varianta.mdl','tm_professional_variantb.mdl','tm_professional_variantc.mdl','tm_professional_variantd.mdl',
+                'tm_separatist.mdl', 'tm_separatist_varianta.mdl','tm_separatist_variantb.mdl','tm_separatist_variantc.mdl','tm_separatist_variantd.mdl']
+counterTerroristModels = ['ctm_fbi.mdl','ctm_fbi_varianta.mdl','ctm_fbi_variantb.mdl','ctm_fbi_variantc.mdl','ctm_fbi_variantd.mdl',
+                        'ctm_gign.mdl', 'ctm_gign_varianta.mdl','ctm_gign_variantb.mdl','ctm_gign_variantc.mdl','ctm_gign_variantd.mdl',
+                        'ctm_gsg9.mdl', 'ctm_gsg9_varianta.mdl','ctm_gsg9_variantb.mdl','ctm_gsg9_variantc.mdl','ctm_gsg9_variantd.mdl',
+                        'ctm_idf.mdl', 'ctm_idf_varianta.mdl','ctm_idf_variantb.mdl','ctm_idf_variantc.mdl','ctm_idf_variantd.mdl',
+                        'ctm_sas.mdl', 'ctm_sas_varianta.mdl','ctm_sas_variantb.mdl','ctm_sas_variantc.mdl','ctm_sas_variantd.mdl',
+                        'ctm_st6.mdl', 'ctm_st6_varianta.mdl','ctm_st6_variantb.mdl','ctm_st6_variantc.mdl','ctm_st6_variantd.mdl',
+                        'ctm_swat.mdl', 'ctm_swat_varianta.mdl','ctm_swat_variantb.mdl','ctm_swat_variantc.mdl','ctm_swat_variantd.mdl']
+                        
 knife = {'knife', 'c4'}
 pistols = {'glock', 'elite', 'p250', 'tec9', 'cz75a', 'deagle', 'revolver', 'usp_silencer', 'hkp2000', 'fiveseven'}
 heavypistols = {'deagle', 'revolver'}
@@ -383,6 +399,7 @@ class RPGPlayer(Player):
             healed = self.health
             self.health = min(self.maxhealth, self.health + amount)
             healed = self.health - healed
+            Sound(sample='items/medshot4.wav', origin=self.origin).play()
             return healed
         return 0
         
@@ -656,7 +673,7 @@ def playerSay(e):
                 
             if e['text'].lower() == 'mana':
                 if hasattr(player, 'mana'):
-                    messagePlayer('%s/%s'%(int(player.mana),int(player.getLevel() / 2 * 5 + player.getLevel() / 2 * 10 + (10 if player.getLevel() % 2 else 0) + 5)), player.index)
+                    messagePlayer('%s/%s'%(int(player.mana),int(player.getLevel() / 2) * 5 + int(player.getLevel() / 2) * 10 + (10 if player.getLevel() % 2 else 0) + 5), player.index)
                 else:
                     messagePlayer('%s don\'t use mana'%player.getClass(), player.index)
             
@@ -807,7 +824,9 @@ def damagePlayer(e):
                                     cleaveTarget = enemies[1]
                                 else:
                                     return
-                            hurt(attacker,players.from_userid(cleaveTarget.userid),int(damage/2))                        
+                            hurt(attacker,players.from_userid(cleaveTarget.userid),int(damage/2))  
+                            Sound(sample='weapons/knife/knife_hit2.wav', origin=attacker.origin, direction=player.view_vector).play()
+                            messagePlayer('You cleaved into %s!'%cleaveTarget.name, attacker.index)
                             
                     if attacker.getLevel() >= 7:
                         
@@ -1169,7 +1188,7 @@ def spawnPlayer(e):
             messagePlayer('You are a Survivor! Heal 10HP every kill!', player.index)
             
     if player.getClass() == cleric.name:
-        player.mana = player.getLevel() / 2 * 5 + player.getLevel() / 2 * 10 + (10 if player.getLevel() % 2 else 0) + 5
+        player.mana = int(player.getLevel() / 2) * 5 + int(player.getLevel() / 2) * 10 + (10 if player.getLevel() % 2 else 0) + 5
         messagePlayer('You have %s mana to cast spells with'%player.mana, player.index)
         if not hasattr(player, 'alignment'):
             player.alignment = 'good'
@@ -1227,8 +1246,22 @@ def spawnPlayer(e):
             messagePlayer('You are an Assassin! Sneak Attack players not facing you!', player.index)
             
     if player.getClass() == sorcerer.name:
-        player.mana = player.getLevel() / 2 * 5 + player.getLevel() / 2 * 10 + (10 if player.getLevel() % 2 else 0) + 5
+        player.mana = int(player.getLevel() / 2) * 5 + int(player.getLevel() / 2) * 10 + (10 if player.getLevel() % 2 else 0) + 5
         messagePlayer('You have %s mana to cast spells with'%player.mana, player.index)
+        
+        messagePlayer('!cast Prestidigitation - 10 mana - Create a fake flashbang to freak out enemies', player.index)
+        messagePlayer('!cast Mage Armor - 10 mana - Create a magical set of armor for yourself', player.index)
+        
+        if player.getLevel() >= 2:
+            messagePlayer('!cast Magic Missile - 10 mana - Deal 3d4+5 damage to a target', player.index)
+            messagePlayer('!cast Thunderwave - 10 mana - Push enemies away from you and deal 2d8 damage (Con save for half damage, no push)', player.index)
+            
+        if player.getLevel() >= 3:
+            messagePlayer('!cast Alter Self - 10 mana - Disguise yourself as an enemy', player.index)
+            messagePlayer('!cast Brightness - 20 mana - Create a blindingly-bright light that follows you (2.5s)', player.index)
+            
+        if player.getLevel() >= 4:
+            messagePlayer('!cast Acid Splash - 20 mana - Removes all enemies armor in an area (Dex save negates)', player.index)
 
 abilities = {
     'second wind',
@@ -1242,7 +1275,14 @@ abilities = {
     'death ward',
     'anishment',
     'spirit guardians',
-    'true resurrection'
+    'true resurrection',
+    'prestidigitation',
+    'mage armor',
+    'magic missile',
+    'thunderwave',
+    'alter self',
+    'brightness',
+    'acid splash'
 }
 
 toggles = {
@@ -1263,7 +1303,7 @@ def cast(command, index):
         try:
             amount = int(a.split(' ')[1])
         except:
-            messagePlayer('You specify how much to heal/damage: !cast Cure 10', player.index)
+            messagePlayer('You specify how much to heal/damage: !cast Cure 10', index)
             return
     
     if ability.lower().startswith('spiritual weapon'):
@@ -1271,14 +1311,14 @@ def cast(command, index):
         try:
             amount = a.split(' ')[2]
         except:
-            messagePlayer('You need to specify which weapon: !cast Spiritual Weapon {weapon}', player.index)
+            messagePlayer('You need to specify which weapon: !cast Spiritual Weapon {weapon}', index)
             return
 
     if ability.lower() not in abilities:
         if ability.lower() not in toggles:
             messagePlayer("'%s' is not an ability"%ability, index)
             return
-    player = players.from_userid(userid_from_index(player.index))
+    player = players.from_userid(userid_from_index(index))
         
     if ability.lower() in abilities:
         if not player.dead:      
@@ -1329,7 +1369,7 @@ def cast(command, index):
                                     messagePlayer('You Inflicted Wounds for %s damage!'%damage, player.index)
                                     messagePlayer('You were Inflicted with Wounds!', target.index)
                                     hurt(player, target, amount, spell=True)
-                                    
+                                    Sound(sample='physics/flesh/flesh_impact_bullet5.wav', origin=target.origin, direction=player.view_vector).play()
                                     player.spellCooldown = time.time()
                                     player.mana -= amount
                                     
@@ -1436,6 +1476,9 @@ def cast(command, index):
                             messagePlayer('You have no more uses of Channel Divinity', player.index)                            
                             return
                         
+                        sound = Sound(sample='items/medcharge4.wav', origin=player.origin)
+                        sound.play()
+                        Delay(.75, sound.stop)
                         player.channels -= 1
                         player.spellCooldown = time.time()
                         if player.alignment.lower() == 'good':
@@ -1572,6 +1615,127 @@ def cast(command, index):
                                 resMenu.append(PagedOption('%s %s'%(p.name, '(BOT)' if getSteamid(p.userid) else '') , p.index))
                         resMenu.select_callback = resSelection
                         resMenu.send(player.index)
+                        
+                if player.getClass() == sorcerer.name:
+                
+                    if ability.lower() == 'prestidigitation':
+                        if not player.getLevel() >= 1:
+                            return
+                        if not player.mana >= 10:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 10), player.index)
+                            return
+                        
+                        player.mana -= 10
+                        player.spellCooldown = time.time()                        
+                        fakeFlash(player)
+                        
+                    if ability.lower() == 'mage armor':
+                        if not player.getLevel() >= 1:
+                            return
+                        if not player.mana >= 10:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 10), player.index)
+                            return
+                        
+                        player.mana -= 10
+                        player.spellCooldown = time.time()                        
+                        player.give_named_item('item_assaultsuit')
+                        
+                    if ability.lower() == 'magic missile':
+                        if not player.getLevel() >= 2:
+                            return
+                        if not player.mana >= 10:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 10), player.index)
+                            return
+                        
+                        target = player.get_view_player()
+                        if not target:
+                            return
+                            
+                        if not target.dead and target.get_team() != player.get_team():
+                            player.mana -= 10
+                            player.spellCooldown = time.time()        
+                            damage = dice(3,4) + 5
+                            hurt(player, target, damage)
+                            messagePlayer('Your Magic Missiles hit for %s damage!'%damage, player.index)
+                            messagePlayer('You were hit by Magic Missiles!', target.index)
+                            Sound(sample='physics/flesh/flesh_impact_bullet1.wav', origin=target.origin, direction=player.view_vector).play()
+                            
+                    if ability.lower() == 'thunderwave':
+                        if not player.getLevel() >= 2:
+                            return
+                        if not player.mana >= 10:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 10), player.index)
+                            return
+                        
+                        player.mana -= 10
+                        player.spellCooldown = time.time()    
+                        targets = list(PlayerIter())
+                        thunder_sound = Sound(sample='weapons/flashbang/flashbang_explode2.wav', origin=player.origin, direction=player.view_vector)
+                        if not thunder_sound.is_precached:
+                            thunder_sound.precache()
+                        thunder_sound.play()
+                        for target in targets:
+                            if Vector.get_distance(target.origin, player.origin) < 700:
+                                target = players.from_userid(target.userid)
+                                if not target.dead and target.get_team() != player.get_team():
+                                    damage = dice(2,8)
+                                    if not diceCheck((11+player.getProficiencyBonus(), 'Constitution'), target, player):
+                                        hurt(player, target, damage)
+                                        push(player, target)
+                                        messagePlayer('A Thunderwave blasts away %s for %s damage!'%(target.name, damage), player.index)
+                                    else:
+                                        hurt(player, target, damage/2)
+                                        messagePlayer('A Thunderwave blasts did %s damage!'%(damage), player.index)
+                                        
+                    if ability.lower() == 'alter self':
+                        if not player.getLevel() >= 3:
+                            return
+                        if not player.mana >= 10:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 10), player.index)
+                            return
+                        
+                        player.mana -= 10
+                        player.spellCooldown = time.time()                        
+                        mdl = random.choice(counterTerroristModels if player.get_team() == 2 else terroristModels)
+                        player.model = Model('models/player/%s'%mdl)
+                        messagePlayer('You have disguised yourself!', player.index)
+                        
+                    if ability.lower() == 'brightness':
+                        if not player.getLevel() >= 3:
+                            return
+                        if not player.mana >= 20:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 20), player.index)
+                            return
+                        
+                        player.mana -= 20
+                        player.spellCooldown = time.time()   
+                        
+                        for x in range(1,25):
+                            Delay(x/10, flashPlayer, (player,))
+                            
+                    if ability.lower() == 'acid splash':
+                        if not player.getLevel() >= 4:
+                            return
+                        if not player.mana >= 20:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 20), player.index)
+                            return
+                        
+                        target = player.get_view_player()
+                        if not target:
+                            return
+                            
+                        player.mana -= 20
+                        player.spellCooldown = time.time()   
+                        
+                        for t in PlayerIter():
+                            if t.get_team() != player.get_team() and not t.dead:
+                                if Vector.get_distance(player.origin, t.origin) <= 700:
+                                    t = players.from_userid(t.userid)
+                                    if not diceCheck((11+player.getProficiencyBonus(), 'Dexterity'), t, player):
+                                        t.armor = 0
+                                        t.has_helmet = False
+                                        messagePlayer('You melted %s\'s armor!'%t.name, player.index)
+                                        messagePlayer('Your armor was melted!',t.index)
                                 
             else:
                 messagePlayer('Your spells and abilities are on cooldown!', index)
@@ -1606,6 +1770,12 @@ def cast(command, index):
     
     return CommandReturn.BLOCK
     
+def flashPlayer(player):
+    flashbang = Entity.create('flashbang_projectile')
+    flashbang.spawn()
+    flashbang.origin = player.get_eye_location()
+    flashbang.detonate()
+    
 def floatWeapons(player, weapons, iteration=275):    
     if not iteration:
         if hasattr(player, 'spiritguardians'):
@@ -1614,7 +1784,7 @@ def floatWeapons(player, weapons, iteration=275):
             weapon.remove()
         print('ended')
         return
-    degree = (2*math.pi)/len(weapons) + iteration * .017
+    degree = (2*math.pi)/len(weapons) + iteration * .005
     x,y,z = player.get_eye_location()
     weapons[-1].origin = Vector(x+30,y,z)
     for i in range(0,len(weapons)):
@@ -1631,6 +1801,25 @@ def floatWeapons(player, weapons, iteration=275):
         weapons[i].angles = QAngle(270,0,0)
     
     Delay(.005, floatWeapons, (player,weapons,iteration-1))
+    
+def push(player, target):
+    x,y,z = player.view_vector
+    x2,y2,z2 = target.origin
+    target.origin = Vector(x2,y2,z2+20)
+    target.teleport(None, target.angles, Vector(x,y,z)*1500)
+    
+def fakeFlash(player):
+    degree = (2*math.pi)/4        
+    x,y,z = player.get_eye_location()
+    x2,y2,z2 = Vector(x+20,y-20,z)
+    x3 = (x2-x) * math.cos(degree) - (y2-y) * math.sin(degree)
+    y3 = (y2-y) * math.cos(degree) + (x2-x) * math.sin(degree)
+    z3 = z2
+    flashbang = Entity.create('flashbang_projectile')
+    flashbang.spawn()
+    flashbang.origin = Vector(x3+x,y3+y,z3)
+    flashbang.teleport(None, flashbang.angles, player.view_vector * 1500)
+    Delay(1.6, flashbang.remove)
             
 def newWeapon():
     m4a1 = ('weapon_m4a1', Model('models/weapons/w_rif_m4a1.mdl'))
