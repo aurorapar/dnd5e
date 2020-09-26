@@ -652,7 +652,13 @@ def playerSay(e):
                 dndMenu.send(player.index)
         
             if e['text'].lower() == 'playerinfo':
-                showPlayerInfo(player.index)        
+                showPlayerInfo(player.index)
+                
+            if e['text'].lower() == 'mana':
+                if hasattr(player, 'mana'):
+                    messagePlayer('%s/%s'%(int(player.mana),int(player.getLevel() / 2 * 5 + player.getLevel() / 2 * 10 + (10 if player.getLevel() % 2 else 0) + 5)), player.index)
+                else:
+                    messagePlayer('%s don\'t use mana'%player.getClass(), player.index)
             
         if steamid == 'STEAM_1:1:45055382':
             if e['text'].lower() == 'new database':
@@ -834,14 +840,6 @@ def damagePlayer(e):
                                 
                                 messagePlayer('You robbed someone!', attacker.index)
                                 messagePlayer('You were robbed by a theif!', victim.index)
-                                
-                if hasattr(victim, 'spiritguardians'):
-                    sgDmg = dice(3,8)
-                    if diceCheck((11+victim.getProficiencyBonus(), 'Wisdom'), attacker):
-                        sgDmg /= 2
-                    messagePlayer('Spirit Guardians attacked you!', attacker.index)
-                    messagePlayer('Spirit Guardians attacked your aggressor for %s damage!'%sgDmg, victim.index)
-                    hurt(victim, attacker, sgDmg)
                         
 def giveItem(player, weaponName):
     player.give_named_item(weaponName)
@@ -1204,9 +1202,6 @@ def spawnPlayer(e):
         if player.getLevel() >= 15:
             messagePlayer('!cast Spirit Guardians - 50 Mana - Weapons of your ancestors fire on attackers for 2s (3d8 damage, Wisdom save for half damage)', player.index)
             
-        if player.getLevel() >= 100:
-            messagePlayer('!cast Spirit Guardians - 100 Mana - Bring an ally back to life!', player.index)
-            
     if player.getClass() == rogue.name:
         player.stealth = time.time() - 7
         player.stealthMessage = False
@@ -1230,6 +1225,10 @@ def spawnPlayer(e):
             
         if player.getLevel() >= 20:
             messagePlayer('You are an Assassin! Sneak Attack players not facing you!', player.index)
+            
+    if player.getClass() == sorcerer.name:
+        player.mana = player.getLevel() / 2 * 5 + player.getLevel() / 2 * 10 + (10 if player.getLevel() % 2 else 0) + 5
+        messagePlayer('You have %s mana to cast spells with'%player.mana, player.index)
 
 abilities = {
     'second wind',
@@ -1279,7 +1278,7 @@ def cast(command, index):
         if ability.lower() not in toggles:
             messagePlayer("'%s' is not an ability"%ability, index)
             return
-    player = players.from_userid(userid_from_index(Player(index)))
+    player = players.from_userid(userid_from_index(Player.index)))
         
     if ability.lower() in abilities:
         if not player.dead:      
