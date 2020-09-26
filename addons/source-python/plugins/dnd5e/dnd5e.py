@@ -1278,7 +1278,7 @@ def cast(command, index):
         if ability.lower() not in toggles:
             messagePlayer("'%s' is not an ability"%ability, index)
             return
-    player = players.from_userid(userid_from_index(player.index)))
+    player = players.from_userid(userid_from_index(player.index))
         
     if ability.lower() in abilities:
         if not player.dead:      
