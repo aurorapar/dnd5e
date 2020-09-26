@@ -1220,6 +1220,9 @@ def spawnPlayer(e):
             
         if player.getLevel() >= 15:
             messagePlayer('!cast Spirit Guardians - 50 Mana - Weapons of your ancestors fire on attackers for 2s (3d8 damage, Wisdom save for half damage)', player.index)
+        
+        if player.getLevel() >= 20:
+            messagePlayer('!cast True Ressurection - 100 Mana - Bring back an ally from the dead', player.index)
             
     if player.getClass() == rogue.name:
         player.stealth = time.time() - 7
