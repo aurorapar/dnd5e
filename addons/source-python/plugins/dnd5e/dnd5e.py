@@ -20,6 +20,7 @@ from entities.helpers import index_from_basehandle
 from entities.helpers import index_from_edict
 from mathlib import Vector
 from mathlib import NULL_VECTOR
+from mathlib import QAngle
 from filters.entities import EntityIter
 from filters.players import PlayerIter
 from filters.recipients import RecipientFilter
@@ -47,6 +48,7 @@ import sqlalchemy as sql
 from sqlalchemy.sql import select
 from sqlalchemy.sql import update
 from sqlalchemy.ext.declarative import declarative_base
+from engines.precache import Model
 import math
 import random
 import os
@@ -504,7 +506,7 @@ def spiderSenseLoop():
 @EntityPreHook(EntityCondition.is_player, 'bump_weapon')
 def prePickup(stack_data):
     weapon = make_object(Entity, stack_data[1])    
-    player = players.from_userid(Player(make_object(Entity, stack_data[0]).index).userid)
+    player = players.from_userid(userid_from_index(make_object(Entity, stack_data[0]).index))
     weaponName = weapon.classname.replace('weapon_', '')
     if not player.canUseWeapon(weaponName):
         if hasattr(player, 'lastWeaponMessage'):
@@ -833,7 +835,7 @@ def preDamagePlayer(stack_data):
         pass
 
     if attacker:
-        victim = players.from_userid(Player(victim.index).userid)
+        victim = players.from_userid(userid_from_index((victim.index)))
         
         if victim.team_index != attacker.team_index:
         
@@ -918,7 +920,15 @@ def formatDamage(attacker, victim, damage, weapon=None):
     if hasattr(victim, 'curse'):
         if victim.curse:
             damage += dice(3,8)
-    
+            
+    if damage > victim.health:
+        if hasattr(victim, 'deathward'):
+            if victim.deathward:
+                victim.deathward = 0
+                damage = 0
+                victim.health = 1
+                messagePlayer('Your Death Ward has warded off a killing blow!', victim.index)
+            
     return damage
     
 @Event('player_death')
@@ -930,6 +940,8 @@ def killedPlayer(e):
         weapon = attacker.get_active_weapon()
         
         victim.resetBuffs()
+        
+        victim.deathspot = victim.origin
         
         if victim.team_index != attacker.team_index:
         
@@ -1094,6 +1106,8 @@ def spawnPlayer(e):
     player = players.from_userid(e['userid'])
     player.maxhealth = 100    
         
+    player.spawnloc = player.origin
+        
     if player.getClass() == fighter.name:
         player.secondWind = 1
         messagePlayer('You gained 10% damage from Greater Weapon Fighting!', player.index)
@@ -1129,7 +1143,7 @@ def spawnPlayer(e):
             messagePlayer('You are a Survivor! Heal 10HP every kill!', player.index)
             
     if player.getClass() == cleric.name:
-        player.mana = player.getLevel() * 10
+        player.mana = player.getLevel() / 2 * 5 + player.getLevel() / 2 * 10 + (10 if player.getLevel() % 2 else 0) + 5
         messagePlayer('You have %s mana to cast spells with'%player.mana, player.index)
         if not hasattr(player, 'alignment'):
             player.alignment = 'good'
@@ -1147,11 +1161,20 @@ def spawnPlayer(e):
             
         if player.getLevel() >= 5:
             messagePlayer('!cast Spiritual Weapon {weapon} - 30 mana - Give yourself a weapon (give command)', player.index) 
-            messagePlayer('!cast Curse - 50 mana - Target takes additional 3d8 damage from all sources (Wisdom save negates)', player.index)
+            messagePlayer('!cast Curse - 30 mana - Target takes additional 3d8 damage from all sources (Wisdom save negates)', player.index)
             
         if player.getLevel() >= 7:
             player.channels = (player.getLevel() - 2) / 5
             messagePlayer('!cast Channel Divinity - Unleash a burst of Healing/Good or Damage/Evil around you (5d8, %s uses)'%player.channels, player.index)
+            
+        if player.getLevel() >= 9:
+            messagePlayer('!cast Death Ward - 20 Mana - The next killing blow on your target reduces them to 1HP instead', player.index)
+            
+        if player.getLevel() >= 11:
+            messagePlayer('!cast Banishment - 50 Mana - Banish a target, sends them back to spawn', player.index)
+            
+        if player.getLevel() >= 15:
+            messagePlayer('!cast Spirit Guardians - 50 Mana - Weapons of your ancestors fire on attackers for 2s (3d8 damage, Wisdom save for half damage)', player.index)
             
     if player.getClass() == rogue.name:
         player.stealth = time.time() - 7
@@ -1185,7 +1208,11 @@ abilities = {
     'bless',
     'spiritual weapon',
     'curse',
-    'channel divinity'
+    'channel divinity',
+    'death ward',
+    'anishment',
+    'spirit guardians',
+    'true resurrection'
 }
 
 toggles = {
@@ -1214,14 +1241,14 @@ def cast(command, index):
         try:
             amount = a.split(' ')[2]
         except:
-            messagePlayer('You need to specify which weapon: !cast Sacred Flame {weapon}', player.index)
+            messagePlayer('You need to specify which weapon: !cast Spiritual Weapon {weapon}', player.index)
             return
 
     if ability.lower() not in abilities:
         if ability.lower() not in toggles:
             messagePlayer("'%s' is not an ability"%ability, index)
             return
-    player = players.from_userid(Player(index).userid)
+    player = players.from_userid(userid_from_index(Player(index)))
         
     if ability.lower() in abilities:
         if not player.dead:      
@@ -1398,9 +1425,128 @@ def cast(command, index):
                                     messagePlayer('You were assaulted by %s\'s Divine Power'%player.name, target.index)
                                     messagePlayer('Your Channel Divinity caused %s wounds to %s!'%(damage, target.name), player.index)
                                     hurt(player, target, damage)
+                                    
+                    if ability.lower() == 'death ward':
+                        if not player.getLevel() >= 9:
+                            return
+                        if not player.mana >= 20:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 20), player.index)
+                            return
+                        target = player.get_view_player()
+                        if not target:
+                            return
+                        target = players.from_userid(target.userid)
+                        if not target:
+                            if Vector.get_distance(player.get_view_coordinates(), player.origin) <= 25:
+                                target = player
+                        if target.team == player.team and not target.dead:
+                            if hasattr(target, 'deathward'):
+                                if target.deathward > 0:
+                                    messagePlayer('%s has already been Warded from Death', player.index)
+                            else:
+                                player.mana -= 20
+                                player.spellCooldown = time.time()
+                                target.deathward = 1
+                                messagePlayer('%s has been Warded from Death', player.index)
+                                messagePlayer('The next shot that would kill you instead reduces you to 1HP (Death Ward)', target.index)
+                                
+                    if ability.lower() == 'banishment':
+                        if not player.getLevel() >= 11:
+                            return
+                        if not player.mana >= 50:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 50), player.index)
+                            return
+                        target = player.get_view_player()
+                        if not target:
+                            return
+                        target = players.from_userid(target.userid)
+                        if target.team != player.team and not target.dead:
+                            player.mana -= 50
+                            player.spellCooldown = time.time()
+                            if diceCheck((11 + player.getProficiencyBonus(), 'Charisma'), target):
+                                messagePlayer('You have failed to Banish!'%target.name, player.index)
+                            else:
+                                messagePlayer('You have Banished %s back to spawn!'%target.name, player.index)
+                                messagePlayer('You were Banished back to spawn!', target.index)
+                                target.origin = target.spawnloc
+                                
+                    if ability.lower() == 'spirit guardians':
+                        if not player.getLevel() >= 15:
+                            return
+                        if not player.mana >= 50:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 50), player.index)
+                            return
                         
+                        if hasattr(player, 'spiritguardians'):
+                            if player.spiritguardians:
+                                messagePlayer('Your Spirit Guardians are still active!', player.index)
+                                return                        
+                    
+                        player.mana -= 50
+                        player.spellCooldown = time.time()
+                        weapons = []
+                        for x in range(0,10):
+                            weapons.append(newWeapon())
+                        floatWeapons(player, weapons)
+                        player.spiritguardians = True
+                        messagePlayer('You are protected for the next 2 seconds by your ancestors', player.index)
+                        
+                    if ability.lower() == 'true resurrection':
+                    
+                        def confirmRes(menu, index, choice):
+                            target = players.from_userid(userid_from_index(index))
+                            cleric = target.savior
+                            if choice.value == 1:
+                                if not cleric.dead and target.dead and target.get_team() == cleric.get_team():
+                                    if cleric.getClass() == cleric.name and cleric.getLevel() >= 20 and cleric.mana >= 200:
+                                        target.spawn()
+                                        target.origin = target.deathspot
+                                        messagePlayer('You have been brought back to life!', target.index)
+                                        messagePlayer('You have brought %s back to life!'%target.name, cleric.index)                                        
+                                        cleric.mana -= 100
+                            else:
+                                messagePlayer('%s does not want to return from the land of the dead'%target.name, cleric.index)
+                    
+                        def resSelection(menu, index, choice):
+                            player = players.from_userid(userid_from_index(index))
+                            if player.getClass() == 'Cleric' and player.getLevel() >= 20 and player.mana >= 100:
+                                target = choice.value
+                                target = players.from_userid(userid_from_index(choice.value))
+                                if target in list(PlayerIter()):
+
+                                    if target.get_team() == player.get_team() and target.dead:
+                                        if target.is_bot():
+                                            target.spawn()
+                                            target.origin = target.deathspot
+                                            messagePlayer('You have been brought back to life!', target.index)
+                                            messagePlayer('You have brought %s back to life!'%target.name, player.index)                                        
+                                            player.mana -= 100
+                                        else:                                    
+                                            target.savior = player
+                                            resAsk = PagedMenu(title='[D&D] Confirm resurrection')
+                                            resAsk.append('%s wants to Resurrect you. Accept?'%player.name)
+                                            resAsk.append(PagedOption('Yes', 1))
+                                            resAsk.append(PagedOption('No', 0))
+                                            resAsk.select_callback = confirmRes
+                                            resAsk.send(target.index)
+                    
+                        if not player.getLevel() >= 20:
+                            return
+                        if not player.mana >= 100:
+                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 100), player.index)
+                            return
+                        
+                        resMenu = PagedMenu(title="[D&D] Resurrection Menu")
+                        for p in PlayerIter():
+                            if p.dead and p.get_team() == player.get_team():
+                                resMenu.append(PagedOption('%s %s'%(p.name, '(BOT)' if getSteamid(p.userid) else '') , p.index))
+                        resMenu.select_callback = resSelection
+                        resMenu.send(player.index)
+                                
             else:
                 messagePlayer('Your spells and abilities are on cooldown!', index)
+                
+    #=======================================================================================================================================================
     #is a toggle
     else:
         if time.time() - player.toggleDelay > 0.1:
@@ -1429,6 +1575,53 @@ def cast(command, index):
                         
     
     return CommandReturn.BLOCK
+    
+def floatWeapons(player, weapons, iteration=275):    
+    if not iteration:
+        if hasattr(player, 'spiritguardians'):
+            player.spiritguardians = 0
+        for weapon in weapons:                    
+            weapon.remove()
+        print('ended')
+        return
+    degree = (2*math.pi)/len(weapons) + iteration * .017
+    x,y,z = player.get_eye_location()
+    weapons[-1].origin = Vector(x+30,y,z)
+    for i in range(0,len(weapons)):
+        if i == 0:
+            weapon = weapons[-1]
+        else:
+            weapon = weapons[i-1]
+        
+        x2,y2,z2 = weapon.origin
+        x3 = (x2-x) * math.cos(degree) - (y2-y) * math.sin(degree)
+        y3 = (y2-y) * math.cos(degree) + (x2-x) * math.sin(degree)
+        
+        weapons[i].origin = Vector(x3+x,y3+y,z)
+        weapons[i].angles = QAngle(270,0,0)
+    
+    Delay(.005, floatWeapons, (player,weapons,iteration-1))
+            
+def newWeapon():
+    m4a1 = ('weapon_m4a1', Model('models/weapons/w_rif_m4a1.mdl'))
+    ak47 = ('weapon_ak47', Model('models/weapons/w_rif_ak47.mdl'))
+    sg553 = ('weapon_sg556', Model('models/weapons/w_rif_sg556.mdl'))
+    aug = ('weapon_sg556', Model('models/weapons/w_rif_aug.mdl'))
+    awp = ('weapon_awp', Model('models/weapons/w_snip_awp.mdl'))
+    g3sg1 = ('weapon_g3sg1', Model('models/weapons/w_snip_g3sg1.mdl'))
+    scar20 = ('weapon_scar20', Model('models/weapons/w_snip_scar20.mdl'))
+    nova = ('weapon_scar20', Model('models/weapons/w_shot_nova.mdl'))
+    xm1014 = ('weapon_scar20', Model('models/weapons/w_shot_xm1014.mdl'))
+    choice = random.choice([m4a1,ak47,sg553,aug, awp, g3sg1, scar20, nova, xm1014])
+    entity = Entity.create(choice[0])
+    entity.model = choice[1]
+    massScale = 1.0    
+
+    entity.set_key_value_string("Damagetype", "1")
+    entity.set_key_value_float("massScale", massScale * 8)
+
+    entity.spawn()
+    return entity
     
 Base = declarative_base()
 class DNDDBUser(Base):
