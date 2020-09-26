@@ -834,6 +834,14 @@ def damagePlayer(e):
                                 
                                 messagePlayer('You robbed someone!', attacker.index)
                                 messagePlayer('You were robbed by a theif!', victim.index)
+                                
+                if hasattr(victim, 'spiritguardians'):
+                    sgDmg = dice(3,8)
+                    if diceCheck((11+victim.getProficiencyBonus(), 'Wisdom'), attacker):
+                        sgDmg /= 2
+                    messagePlayer('Spirit Guardians attacked you!', attacker.index)
+                    messagePlayer('Spirit Guardians attacked your aggressor for %s damage!'%sgDmg, victim.index)
+                    hurt(victim, attacker, sgDmg)
                         
 def giveItem(player, weaponName):
     player.give_named_item(weaponName)
@@ -1195,6 +1203,9 @@ def spawnPlayer(e):
             
         if player.getLevel() >= 15:
             messagePlayer('!cast Spirit Guardians - 50 Mana - Weapons of your ancestors fire on attackers for 2s (3d8 damage, Wisdom save for half damage)', player.index)
+            
+        if player.getLevel() >= 100:
+            messagePlayer('!cast Spirit Guardians - 100 Mana - Bring an ally back to life!', player.index)
             
     if player.getClass() == rogue.name:
         player.stealth = time.time() - 7
