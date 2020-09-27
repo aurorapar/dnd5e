@@ -1428,7 +1428,7 @@ def bugReport(command,index):
     player = players.from_userid(userid_from_index(index))
     reportTime = time.ctime()
     with open(bugFile, 'a') as bf:
-        bf.write("%s at %s\n"%(player.name, reportTime))
+        bf.write("%s %s at %s\n"%(getSteamid(player.userid), player.name, reportTime))
         bf.write(command.arg_string)
         bf.write("\n")
         
