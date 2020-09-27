@@ -130,15 +130,15 @@ def diceCheck(check, player, attacker):
             bonus += dice(1,4)
     
     if check[1] in player.getSaves():
-        result = random.randint(1,20) + (self.getLevel() - 1) / 4 + 2 + bonus > check[0]        
-        if hasattr(player, 'indomitable') or (check[1] == 'Dexterity' and player.getClass() == 'Rogue' and player.getLevel() >= 5):
+        result = random.randint(1,20) + player.getProfiencyBonus() + bonus > check[0]        
+        if hasattr(player, 'indomitable') or (check[1] == 'Dexterity' and player.getClass() == rogue.name and player.getLevel() >= 5):
             if not result and player.indomitable > 1:
                 player.indomitable -= 1
-                return random.randint(1,20) + (self.getLevel() - 1) / 4 + 2 + bonus > check[0]
+                return random.randint(1,20) + player.getProfiencyBonus() + bonus > check[0]
         return result
         
     result = random.randint(1,20) + bonus > check[0]
-    if hasattr(player, 'indomitable') or (check[1] == 'Dexterity' and player.getClass() == 'Rogue' and player.getLevel() >= 5):
+    if hasattr(player, 'indomitable') or (check[1] == 'Dexterity' and player.getClass() == rogue.name and player.getLevel() >= 5):
         if not result and player.indomitable > 1:
             player.indomitable -= 1
             return random.randint(1,20) + bonus > check[0]
