@@ -504,6 +504,8 @@ def dndMenuSelect(menu, index, choice):
             players.from_userid(userid_from_index(index)).spellbook.send(index)
         else:
             choice.value.send(index)    
+            
+
     
 def dndRaceMenuSelect(menu, index, choice):
     createConfirmationMenu(choice.value, index)
@@ -518,6 +520,16 @@ def dndPlayerInfoMenuSelect(menu, index, choice):
     except:
         return
     
+dndHelpMenu = PagedMenu(title="D&D 5e Help Menu")
+dndHelpMenu.append("Please see this site for help:")
+dndHelpMenu.append("http://dndcsgo.com/")
+#dndHelpMenu.select_callback = dndHelpMenuSelect
+
+dndCommandsMenu = PagedMenu(title="D&D 5e Commands Menu")
+dndCommandsMenu.append("menu - Shows Menus")
+dndCommandsMenu.append("spells - Shows you your spellbook")
+dndCommandsMenu.append("mana - Shows you your available mana")
+#dndCommandsMenu.select_callback = dndHelpMenuSelect
 
 dndRaceMenu = PagedMenu(title="D&D 5e Race Menu")
 for r in Race.races:
@@ -540,8 +552,8 @@ dndMenu.append(PagedOption('Races', dndRaceMenu))
 dndMenu.append(PagedOption('Classes', dndClassMenu))
 dndMenu.append(PagedOption('Your Spells', 'spellbook'))
 dndMenu.append(PagedOption('Player Info', dndPlayerInfoMenu))
-dndMenu.append(PagedOption('Commands', None))
-dndMenu.append(PagedOption('Help', None))
+dndMenu.append(PagedOption('Commands', dndCommandsMenu))
+dndMenu.append(PagedOption('Help', dndHelpMenu))
 dndMenu.select_callback = dndMenuSelect
 
 def spiderSenseLoop():
@@ -1320,7 +1332,7 @@ def spawnPlayer(e):
             messagePlayer('!cast Death Ward - 20 Mana - The next killing blow on your target reduces them to 1HP instead', player.index)
             
         if player.getLevel() >= 11:
-            spell = '!cast Banishment - 50 Mana - Banish a target, sends them back to spawn'
+            spell = '!cast Banishment - 50 Mana - Banish a target, sends them back to spawn (Wis save negates)'
             formatLine(spell, player.spellbook)
             messagePlayer('!cast Banishment - 50 Mana - Banish a target, sends them back to spawn', player.index)
             
@@ -1399,7 +1411,7 @@ def spawnPlayer(e):
             messagePlayer('!cast Fireball - 30 mana - Shoot a fireball where you\'re looking! (5d8, Dex save halves)', player.index)
             
         if player.getLevel() >= 7:
-            spell = '!cast Silence - 35 mana - Silences everyone in an aerae you\'re looking at for 5s'
+            spell = '!cast Silence - 35 mana - Silences everyone in an area you\'re looking at for 5s'
             formatLine(spell, player.spellbook)
             messagePlayer('!cast Silence - 35 mana - Silences everyone in an area you\'re looking at for 5s', player.index)
             spell = '!cast Confusion - 50 mana - All players have a random skin'
@@ -1442,6 +1454,9 @@ def spawnPlayer(e):
             spell = "!cast Fly - 120 mana - Look where you want to move to!"
             formatLine(spell, player.spellbook)
             messagePlayer(spell, player.index)
+            
+    if player.getLevel() <= 3:
+        messagePlayer('Type "menu" to access the main menu.', player.index)
 
 abilities = {
     'second wind',
