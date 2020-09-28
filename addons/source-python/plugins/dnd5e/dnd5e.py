@@ -128,21 +128,37 @@ def diceCheck(check, player, attacker):
     if hasattr(player, 'bless'):
         if player.bless:
             bonus += dice(1,4)
+            
+    dc = check[0]
+    save = check[1]
+    rolledAdvantage = False
     
-    if check[1] in player.getSaves():
-        result = random.randint(1,20) + player.getProfiencyBonus() + bonus > check[0]        
-        if hasattr(player, 'indomitable') or (check[1] == 'Dexterity' and player.getClass() == rogue.name and player.getLevel() >= 5):
-            if not result and player.indomitable > 1:
-                player.indomitable -= 1
-                return random.randint(1,20) + player.getProfiencyBonus() + bonus > check[0]
-        return result
+    result = dice(1,20) + bonus + (player.getProficiencyBonus() if save in player.getSaves() else 0)
+    
+    if result < dc:
         
-    result = random.randint(1,20) + bonus > check[0]
-    if hasattr(player, 'indomitable') or (check[1] == 'Dexterity' and player.getClass() == rogue.name and player.getLevel() >= 5):
-        if not result and player.indomitable > 1:
-            player.indomitable -= 1
-            return random.randint(1,20) + bonus > check[0]
-    return result
+        if hasattr(player, 'indomitable'):  # or (check[1] == 'Dexterity' and player.getClass() == rogue.name and player.getLevel() >= 5) or (player.getRace() == gnome.name and save in ['Intelligence', 'Charisma', 'Wisdom']):
+            if player.indomitable > 1:
+                player.indomitable -= 1
+                result = dice(1,20) + bonus + (player.getProficiencyBonus() if save in player.getSaves() else 0)
+                if result >= dc:
+                    messagePlayer('Your Indomitable nature saved you from a nasty effect!')
+                    rolledAdvantage = True
+        
+        if save == 'Dexterity' and player.getClass() == rogue.name and player.getLevel() >= 5:
+            result = dice(1,20) + bonus + (player.getProficiencyBonus() if save in player.getSaves() else 0)
+            if result >= dc:
+                messagePlayer('Your Evasive trait saved you from a nasty effect!')
+                rolledAdvantage = True
+                
+        if not rolledAdvantage and player.getRace() == gnome.name:
+            if save in ['Intelligence', 'Charisma', 'Wisdom']:
+                result = dice(1,20) + bonus + (player.getProficiencyBonus() if save in player.getSaves() else 0)
+                if result >= dc:
+                    messagePlayer('Your Gnomish cunning saved you from a nasty effect!')
+                    rolledAdvantage = True
+                    
+    return result >= dc
 
 
 class DNDClass():
@@ -150,52 +166,52 @@ class DNDClass():
     classes = []
     defaultClass = None
     
-    def __init__(self, name, description=None, requiredClasses=None, defaultClass=False, save=None, weapons=[]):
+    def __init__(self, name, description=None, requiredClasses=None, defaultClass=False, saves=[], weapons=[]):
             
         self.name = name
         #self.requiredClasses = {fighter: 3, cleric: 3}
         self.requiredClasses = requiredClasses
         self.description = description
-        self.save = save
+        self.saves = saves
         self.weapons = weapons
         DNDClass.classes.append(self)
         if defaultClass:
             if not DNDClass.defaultClass:
                 DNDClass.defaultClass = self
 
-cleric = DNDClass('Cleric', 'A priest who follows a path of good or evil. Uses divine power to fight.', save='Wisdom')       
+cleric = DNDClass('Cleric', 'A priest who follows a path of good or evil. Uses divine power to fight.', saves=['Wisdom'])       
 cleric.weapons = list(chain(knife, pistols, heavypistols, taser, shotguns, lmg, smg))
 cleric.weaponDesc = ['Pistols', 'Heavy Pistols', 'Taser', 'Shotguns', 'LMGs', 'SMGs']
 
-fighter = DNDClass('Fighter', 'Uses martial prowess and tactical maneuvers to defeat enemies.', defaultClass=True, save='Fortitude')
+fighter = DNDClass('Fighter', 'Uses martial prowess and tactical maneuvers to defeat enemies.', defaultClass=True, saves=['Fortitude'])
 fighter.weapons = list(chain(knife, pistols, heavypistols, shotguns, lmg, smg, rifles, bigsnipers, {'hegrenade'}))
 fighter.weaponDesc = ['HE Grenade', 'Pistols', 'Heavy Pistols', 'Shotguns', 'LMGs', 'SMGs', 'Rifles', 'AWP', 'Autosnipers']
 
-rogue = DNDClass('Rogue', 'Strikes from the shadows and uses guile to outmaneuver enemies.', save='Dexterity')
+rogue = DNDClass('Rogue', 'Strikes from the shadows and uses guile to outmaneuver enemies.', saves=['Dexterity'])
 rogue.weapons = list(chain(knife, pistols, heavypistols, shotguns, smg, {'ssg08'}, grenades))
 rogue.weaponDesc = ['Pistols', 'Heavy Pistols', 'Shotguns', 'SMGs', 'Scout', 'Grenades', 'Taser']
 
-sorcerer = DNDClass('Sorcerer', 'Descended from a magical blood line, their magic is innate and awe-inspiring.', save='Constitution')
+sorcerer = DNDClass('Sorcerer', 'Descended from a magical blood line, their magic is innate and awe-inspiring.', saves=['Constitution'])
 sorcerer.weapons = list(chain(knife, pistols, grenades))
 sorcerer.weaponDesc = ['Pistols', 'Grenades', 'Taser']
 
-monk = DNDClass('Monk', 'Disciplined. Quick. Mind and body. A master of both.', requiredClasses={fighter:7, rogue:7}, save=['Strength', 'Dexterity'])
+monk = DNDClass('Monk', 'Disciplined. Quick. Mind and body. A master of both.', requiredClasses={fighter:7, rogue:7}, saves=['Strength', 'Dexterity'])
 monk.weapons = list(chain(knife, pistols, heavypistols, smg))
 monk.weaponDesc = ['Pistols', 'Heavy Pistols', 'SMGs']
 
-paladin = DNDClass('Paladin', 'A holy crusader who has taken an oath to serve a higher calling.', requiredClasses={fighter:7,cleric:7}, save=['Wisdom', 'Charisma'])
+paladin = DNDClass('Paladin', 'A holy crusader who has taken an oath to serve a higher calling.', requiredClasses={fighter:7,cleric:7}, saves=['Wisdom', 'Charisma'])
 paladin.weapons = list(chain(knife, pistols, heavypistols, shotguns, lmg, smg, rifles, bigsnipers, {'hegrenade'}))
 paladin.weaponDesc = ['HE Grenade', 'Pistols', 'Heavy Pistols', 'Shotguns', 'LMGs', 'SMGs', 'Rifles', 'AWP', 'Autosnipers']
 
-warlock = DNDClass('Warlock', 'A Witch/Warlock serves a greater patron for a chance at greater power.', requiredClasses={cleric:7, sorcerer:7}, save=['Wisdom', 'Charisma'])
+warlock = DNDClass('Warlock', 'A Witch/Warlock serves a greater patron for a chance at greater power.', requiredClasses={cleric:7, sorcerer:7}, saves=['Wisdom', 'Charisma'])
 warlock.weapons = list(chain(knife, pistols, grenades))
 warlock.weaponDesc = ['Pistols', 'Grenades', 'Taser']
 
-bard = DNDClass('Bard', 'Bards sing songs of encouragement to help their allies and hinder their enemies.', requiredClasses ={cleric:7, rogue:7}, save=['Dexterity', 'Charisma'])
+bard = DNDClass('Bard', 'Bards sing songs of encouragement to help their allies and hinder their enemies.', requiredClasses ={cleric:7, rogue:7}, saves=['Dexterity', 'Charisma'])
 bard.weapons = list(chain(knife, pistols, heavypistols, shotguns, smg, {'ssg08'}, grenades))
 bard.weaponDesc = ['Pistols', 'Heavy Pistols', 'Shotguns', 'SMGs', 'Scout', 'Grenades', 'Taser']
 
-ranger = DNDClass('Ranger', 'Rangers master the wilderness, hunting foes of their choosing.', requiredClasses={rogue:7, fighter:7}, save=['Dexterity', 'Strength'])
+ranger = DNDClass('Ranger', 'Rangers master the wilderness, hunting foes of their choosing.', requiredClasses={rogue:7, fighter:7}, saves=['Dexterity', 'Strength'])
 ranger.weapons = list(chain(knife, pistols, heavypistols, shotguns, smg, {'ssg08'}, grenades))
 ranger.weaponDesc = ['Pistols', 'Heavy Pistols', 'Shotguns', 'SMGs', 'Scout', 'Grenades', 'Taser']
 
@@ -207,28 +223,34 @@ class Race():
     races = []
     defaultRace = None
     
-    def __init__(self, name, description=None, levelAdjustment=0, defaultRace=False, weapons=[]):
+    def __init__(self, name, description=None, levelAdjustment=0, defaultRace=False, weapons=[],saves=[]):
         
         self.name = name
         self.weapons = weapons
         self.description=description
         levelAdjustment = levelAdjustment
+        self.saves = saves
         if defaultRace:
             if not Race.defaultRace:
                 Race.defaultRace = self
         Race.races.append(self)
                 
 human = Race('Human', 'Humans excel at learning and gain bonus XP', defaultRace = True)
-elf = Race('Elf', 'Elves are graceful and trained in many weapons')
+elf = Race('Elf', 'Elves are graceful and trained in many weapons (Can always use M4/AK/Scout)')
 elf.weapons = list(chain({'m4a1', 'm4a1_silenced', 'ak47', 'ssg08'}))
 elf.weaponDesc = ['M4', 'AK-47', 'Scout']
-halfling = Race('Halfling', 'Halflings are short and nimble making them hard to see')
-dwarf = Race('Dwarf', 'Dwarves have a stronger stomach from years of drinking and mining')
-dragonborn = Race('Dragonborn', 'Humanoid dragons that can breath fire upon their enemies')
-gnome = Race('Gnome', 'Gnomes are clever inventors and engineers')
-halfelf = Race('Half-Elf', 'Half-Elves make charming scholars and diplomats')
-halforc = Race('Half-Orc', "Half-Orcs aren't nearly as brutish as full-bloods, but nearly as strong")
-tiefling = Race('Tiefling', 'Tieflings blood have been tainted with infernal ancestry')
+halfling = Race('Halfling', 'Halflings are short and nimble making them hard to see (Stealth faster, 10% Chance to Dodge)')
+dwarf = Race('Dwarf', 'Dwarves have a strong stomach and strong back from years of drinking and mining (Use AWP, 25HP)')
+dwarf.weapons = ['awp']
+dwarf.weaponDesc = ['AWP']
+dragonborn = Race('Dragonborn', 'Humanoid dragons that can breath fire upon their enemies (!cast Breath Weapon 3d8, Con halves)')
+gnome = Race('Gnome', 'Gnomes are clever inventors and engineers (Can always use grenades, advantage on Int/Wis/Cha saves)')
+#gnome.saves = ['Intelligence', 'Wisdom', 'Charisma'] Advantage is a special case
+gnome.weapons = grenades
+gnome.weaponDesc = ['Grenades']
+halfelf = Race('Half-Elf', 'Half-Elves make charming diplomats (5% Bonus XP and 10% Damage Reduction')
+halforc = Race('Half-Orc', "Half-Orcs aren't nearly as brutish as full-bloods, but nearly as strong (15% Damage)")
+tiefling = Race('Tiefling', 'Tieflings blood have been tainted with infernal ancestry. Immune to flashes. (!cast Darkness - Blinds everyone near you)')
 
 def error(message):
     print("\n\n------------------")
@@ -245,7 +267,7 @@ class RPGPlayer(Player):
         self.spellCooldown = 0
         self.toggleDelay = 0
         self.crit = False
-        self.save = None
+        self.saves = []
         self.spellbook = None
         if getSteamid(self.userid) in database:
             self.stats = database[getSteamid(self.userid)]
@@ -283,6 +305,11 @@ class RPGPlayer(Player):
             bonusXP = int(xp * humanXP - xp)
             self.stats[self.getClass()]['XP'] += bonusXP
             messagePlayer("\x06You have earned %s XP for being a Human"%bonusXP, self.index)
+            
+        if self.getRace() == halfelf.name:
+            bonusXP = max(1, int(xp * ((humanXP - 1) / 2 + 1) - xp))
+            self.stats[self.getClass()]['XP'] += bonusXP
+            messagePlayer("\x06You have earned %s XP for being a Half-Elf"%bonusXP, self.index)
         
         if self.getLevel() < 20:
             xpNeeded = self.getLevel() * 1000
@@ -316,7 +343,9 @@ class RPGPlayer(Player):
         if self.meetsClassRequirements(cls):
             self.stats['Class'] = cls.name
             messagePlayer('You are now a %s'%cls.name, self.index)
-            self.save = cls.save
+            for save in cls.saves:
+                self.saves.append(save)
+            self.setRace(self.getRace())
         else:
             messagePlayer("You haven't unlocked that class yet", self.index)
         
@@ -326,18 +355,20 @@ class RPGPlayer(Player):
         
     def setRace(self, race):
         
+        r = None
         if race in Race.races:
-            self.stats['Race'] = race.name
-            messagePlayer('You are now a %s'%race.name, self.index)
-            return True
-        
-        for r in Race.races:
-            if r.name == race:
-                self.stats['Race'] = race
-                messagePlayer('You are now a %s'%race, self.index)
-                return True
+            r = race
+        for rc in Race.races:
+            if race == rc.name:
+                r = rc
                 
-        error("%s IS NOT A VALID RACE"%race.name)
+        if not r:
+            error("%S IS NOT A VALID RACE"%race.name)
+        
+        self.stats['Race'] = r.name
+        messagePlayer('You are now a %s'%r.name, self.index)
+        for save in r.saves:
+            self.save.append(save)                
             
     def getLevel(self, dndClass=None):
     
@@ -400,10 +431,7 @@ class RPGPlayer(Player):
         
     def getSaves(self):
     
-        cls = self.getClass()        
-        for c in DNDClass.classes:
-            if cls == c.name:
-                return c.save
+        return self.saves
                 
     def heal(self, amount):
         if self.health != self.maxhealth:
@@ -423,7 +451,7 @@ class RPGPlayer(Player):
             return False
         if not self.getClass() == rogue.name:
             return False
-        return time.time() - self.stealth > (6.225 - (4.5/20)*self.getLevel())
+        return time.time() - self.stealth > (6.225 - (4.5/20)*self.getLevel() - (1 if player.getRace() == halfling.name else 0))
         
         
 players = PlayerDictionary(RPGPlayer)
@@ -464,7 +492,7 @@ def createConfirmationMenu(obj, index):
     
     formatLine(obj.description, confirmationMenu)
     if obj in DNDClass.classes:
-        formatLine('Good Save(s): ' + str(obj.save).strip("[]").replace("'", ""), confirmationMenu)
+        formatLine('Good Save(s): ' + str(obj.saves).strip("[]").replace("'", ""), confirmationMenu)
     if obj.weapons:
         formatLine('Weapons: '+ str(obj.weaponDesc).strip("[]").replace("'", ""), confirmationMenu)
     confirmationMenu.select_callback = confirmationMenuSelect
@@ -502,17 +530,6 @@ for cls in DNDClass.classes:
         dndClassMenu.append(PagedOption("%s"%(cls.name), cls))
 dndClassMenu.select_callback = dndClassMenuSelect
 
-dndHelpMenu = PagedMenu(title="D&D 5e Help Menu")
-dndHelpMenu.append("Please see this site for help:")
-dndHelpMenu.append("http://dndcsgo.com/")
-#dndHelpMenu.select_callback = dndHelpMenuSelect
-
-dndCommandsMenu = PagedMenu(title="D&D 5e Commands Menu")
-dndCommandsMenu.append("menu - Shows Menus")
-dndCommandsMenu.append("spells - Shows you your spellbook")
-dndCommandsMenu.append("mana - Shows you your available mana")
-#dndCommandsMenu.select_callback = dndHelpMenuSelect
-
 dndPlayerInfoMenu = PagedMenu(title="D&D 5e Player Info Menu")
 for p in PlayerIter():
     dndPlayerInfoMenu.append(PagedOption(p.name, p.index))
@@ -523,8 +540,8 @@ dndMenu.append(PagedOption('Races', dndRaceMenu))
 dndMenu.append(PagedOption('Classes', dndClassMenu))
 dndMenu.append(PagedOption('Your Spells', 'spellbook'))
 dndMenu.append(PagedOption('Player Info', dndPlayerInfoMenu))
-dndMenu.append(PagedOption('Commands', dndCommandsMenu))
-dndMenu.append(PagedOption('Help', dndHelpMenu))
+dndMenu.append(PagedOption('Commands', None))
+dndMenu.append(PagedOption('Help', None))
 dndMenu.select_callback = dndMenuSelect
 
 def spiderSenseLoop():
@@ -563,7 +580,7 @@ def prePickup(stack_data):
                 messagePlayer('%s\'s can not use a %s'%(player.getClass(),weaponName), player.index)
         else:
             player.lastWeaponMessage = time.time()
-            messagePlayer('You can not use a %s'%weaponName, player.index)
+            messagePlayer('%s\'s can not use a %s'%(player.getClass(),weaponName), player.index)
         return False        
 
 def load():
@@ -943,12 +960,11 @@ def hurt(attacker, victim, amount, spell=False):
 def formatDamage(attacker, victim, damage, weapon=None):
     
     #Dodge shit here. Can still dodge spell damage
-    if victim.getClass() == fighter.name and victim.getLevel() >= 10:
-        if victim.armor > 0:
-            if random.randint(1,20) == 20:
-                messagePlayer('You parried an attack with your defensive techniques!', victim.index)
-                messagePlayer('Your target parried your attack!', attacker.index)
-                return 0
+    if victim.getRace() == halfling.name:
+        if dice(1,10) == 10:
+            messagePlayer('You were lucky and dodged an attack!', victim.index)
+            messagePlayer('The halfling was too hard to hit!', attacker.index)
+            return 0
     
         
     # attacker shit here. 
@@ -956,6 +972,20 @@ def formatDamage(attacker, victim, damage, weapon=None):
     if 'point_hurt' != weapon:
         critBonus = 0    
         bonusDamageMult = 1.0
+        
+        #Dodge shit here. Can NOT dodge spell damage
+        if victim.getClass() == fighter.name and victim.getLevel() >= 10:
+            if victim.armor > 0:
+                if dice(1,20) == 20:
+                    messagePlayer('You parried an attack with your defensive techniques!', victim.index)
+                    messagePlayer('Your target parried your attack!', attacker.index)
+                    return 0
+                    
+        if victim.getRace() == halfelf.name:
+            bonusDamageMult -= .1
+                    
+        if attacker.getRace() == halforc.name:
+            bonusDamageMult += .15
         
         if attacker.getClass() == fighter.name:
             bonusDamageMult += .1
@@ -1005,6 +1035,12 @@ def formatDamage(attacker, victim, damage, weapon=None):
                 messagePlayer('Your Death Ward has warded off a killing blow!', victim.index)
             
     return damage
+    
+@Event('player_blind')
+def blindedPlayer(e):
+    player = players.from_userid(e['userid'])
+    if player.getRace() == tiefling.name:
+        player.set_property_float('m_flFlashDuration', 0.0)
     
 @Event('player_death')
 def killedPlayer(e):
@@ -1125,7 +1161,7 @@ def perceptionCheck(viewer, player):
         
 def checkStealth(player):    
     
-    if player.stealthed(): 
+    if player.stealthed():   
         if not player.stealthMessage:
             messagePlayer('You are now stealthed', player.index)
         player.color = Color(255,255,255).with_alpha(0)
@@ -1185,6 +1221,19 @@ def spawnPlayer(e):
     player.maxhealth = 100            
     player.spawnloc = player.origin    
     player.spellbook = PagedMenu(title='[D&D] %s Spells'%player.getClass())
+    
+    if player.getRace() == dwarf.name:
+        player.maxhealth += 25
+        player.health = player.maxhealth
+        messagePlayer('You are a hardy Dwarf! You have gained 25HP', player.index)
+        
+    if player.getRace() == dragonborn.name:
+        player.breathweapon = 1
+        messagePlayer('!cast Breath Weapon - Breath Fire on your enemies!',player.index)
+        
+    if player.getRace() == tiefling.name:
+        player.darkness = 1
+        messagePlayer('!cast Darkness - Blinds all nearby players!',player.index)
         
     if player.getClass() == fighter.name:
         player.secondWind = 1
@@ -1288,7 +1337,7 @@ def spawnPlayer(e):
         player.stealth = time.time() - 7
         player.stealthMessage = False
         player.stealthChecks = {}
-        messagePlayer('You are stealthed. After shooting, jumping, using an ability, or being shot, you restealth after {:.2f} seconds'.format(6.225 - player.getLevel()*(4.5/20)), player.index)
+        messagePlayer('You are stealthed. After shooting, jumping, using an ability, or being shot, you restealth after {:.2f} seconds'.format(6.225 - player.getLevel()*(4.5/20) - (1 if player.getRace() == halfling.name else 0)), player.index)
         messagePlayer('While stealthed, you can Sneak Attack (%sd6 SA dice)'%int((player.getLevel()+3)/2 - 1), player.index)
         
         if player.getLevel() >= 3:
@@ -1424,7 +1473,9 @@ abilities = {
     'chain lightning',
     'true seeing',
     'delayed blast fireball',
-    'fly'
+    'fly',
+    'breath weapon',
+    'darkness'
 }
 
 toggles = {
@@ -1476,6 +1527,42 @@ def cast(command, index):
     if ability.lower() in abilities:
         if not player.dead:      
             if time.time() - player.spellCooldown > 1.5:
+            
+                if player.getRace() == dragonborn.name:
+                    if ability.lower() == 'breath weapon':
+                        if player.breathweapon:
+                            player.breathweapon = 0
+                            loc = player.origin + player.view_vector*75
+                            createFire(loc, 1.5)
+                            sound = Sound(sample='weapons/molotov/fire_ignite_1.wav', origin=loc, volume=.5)
+                            sound.play()
+                            damage = dice(3,8)
+                            for target in PlayerIter():
+                                if target.get_team() != player.get_team() and not target.dead and Vector.get_distance(target.origin, player.origin) <= 400:
+                                    target = players.from_userid(target.userid)
+                                    if not diceCheck((10 + player.getProficiencyBonus(), 'Constitution'), target, player):
+                                        hurt(player, target, damage)
+                                        messagePlayer('A Dragonborn torched you!', target.index)
+                                        messagePlayer('You torched %s!'%target.name, player.index)
+                                    else:
+                                        hurt(player, target, int(damage/2))
+                                        messagePlayer('A Dragonborn spit fire at you!', target.index)
+                                        messagePlayer('You spit fire at %s!'%target.name, player.index)
+                        else:
+                            messagePlayer('You already used your Breath Weapon this round!', player.index)
+                            
+                if player.getRace() == tiefling.name:
+                    if ability.lower() == 'darkness':
+                        if player.darkness:
+                            player.darkness = 0                            
+                            for target in PlayerIter():
+                                if not target.dead and Vector.get_distance(target.origin, player.origin) <= 700:
+                                    target = players.from_userid(target.userid)
+                                    flashPlayer(target)                                      
+                                    messagePlayer('You found yourself in magical Darkness!', target.index)
+                                    
+                        else:
+                            messagePlayer('You already used your Darkness this round!', player.index)
                 
                 if player.getClass() == fighter.name:
                     if ability.lower() == 'second wind':
