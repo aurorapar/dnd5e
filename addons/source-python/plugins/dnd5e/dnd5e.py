@@ -502,6 +502,17 @@ for cls in DNDClass.classes:
         dndClassMenu.append(PagedOption("%s"%(cls.name), cls))
 dndClassMenu.select_callback = dndClassMenuSelect
 
+dndHelpMenu = PagedMenu(title="D&D 5e Help Menu")
+dndHelpMenu.append("Please see this site for help:")
+dndHelpMenu.append("http://dndcsgo.com/")
+#dndHelpMenu.select_callback = dndHelpMenuSelect
+
+dndCommandsMenu = PagedMenu(title="D&D 5e Commands Menu")
+dndCommandsMenu.append("menu - Shows Menus")
+dndCommandsMenu.append("spells - Shows you your spellbook")
+dndCommandsMenu.append("mana - Shows you your available mana")
+#dndCommandsMenu.select_callback = dndHelpMenuSelect
+
 dndPlayerInfoMenu = PagedMenu(title="D&D 5e Player Info Menu")
 for p in PlayerIter():
     dndPlayerInfoMenu.append(PagedOption(p.name, p.index))
@@ -512,8 +523,8 @@ dndMenu.append(PagedOption('Races', dndRaceMenu))
 dndMenu.append(PagedOption('Classes', dndClassMenu))
 dndMenu.append(PagedOption('Your Spells', 'spellbook'))
 dndMenu.append(PagedOption('Player Info', dndPlayerInfoMenu))
-dndMenu.append(PagedOption('Commands', None))
-dndMenu.append(PagedOption('Help', None))
+dndMenu.append(PagedOption('Commands', dndCommandsMenu))
+dndMenu.append(PagedOption('Help', dndHelpMenu))
 dndMenu.select_callback = dndMenuSelect
 
 def spiderSenseLoop():
@@ -1114,7 +1125,7 @@ def perceptionCheck(viewer, player):
         
 def checkStealth(player):    
     
-    if player.stealthed():   
+    if player.stealthed(): 
         if not player.stealthMessage:
             messagePlayer('You are now stealthed', player.index)
         player.color = Color(255,255,255).with_alpha(0)
