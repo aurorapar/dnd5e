@@ -1241,6 +1241,7 @@ def spawnPlayer(e):
         
         if player.getLevel() >= 3:
             messagePlayer('You have an extra 5% chance to score a critical hit!', player.index)
+            messagePlayer('Your crits cleave into nearby enemmies!', player.index)
             
         if player.getLevel() >= 5:
             messagePlayer('You deal an extra 5% damage for having an Extra Attack!', player.index)
@@ -1257,7 +1258,7 @@ def spawnPlayer(e):
         if player.getLevel() >= 13:
             player.indomitable = 2            
         if player.getLevel() >= 9:
-            messagePlayer('You are now Indomitable (reroll %s failed saves)'%player.indomitable, player.index)
+            messagePlayer('You are now Indomitable (Advantage on %s failed saves)'%player.indomitable, player.index)
             
         if player.getLevel() >= 10:
             messagePlayer('You have a 5% chance to parry attacks!', player.index)
