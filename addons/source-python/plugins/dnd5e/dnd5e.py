@@ -274,8 +274,8 @@ class RPGPlayer(Player):
         else:
             messageServer("Welcome the new player, %s!"%self.name)
             self.setClass(DNDClass.defaultClass.name)
-            self.setRace(Race.defaultRace.name)
             self.stats['Gold'] = 0
+            database[getSteamid(self.userid)] = self.stats
         self.setDefaults()    
         
     def setDefaults(self):
@@ -345,7 +345,11 @@ class RPGPlayer(Player):
             messagePlayer('You are now a %s'%cls.name, self.index)
             for save in cls.saves:
                 self.saves.append(save)
-            self.setRace(self.getRace())
+            #necessary for new players
+            if 'Race' in self.stats.keys():
+                self.setRace(self.getRace())
+            else:
+                self.setRace(Race.defaultRace.name)
         else:
             messagePlayer("You haven't unlocked that class yet", self.index)
         
@@ -363,7 +367,7 @@ class RPGPlayer(Player):
                 r = rc
                 
         if not r:
-            error("%S IS NOT A VALID RACE"%race.name)
+            error("%S IS NOT A VALID RACE"%race)
         
         self.stats['Race'] = r.name
         messagePlayer('You are now a %s'%r.name, self.index)
