@@ -294,6 +294,7 @@ class RPGPlayer(Player):
         self.crit = False
         self.saves = []
         self.spellbook = None
+        self.controllingbot = False
         if getSteamid(self.userid) in database:
             self.stats = database[getSteamid(self.userid)]
         else:
@@ -319,6 +320,11 @@ class RPGPlayer(Player):
         if not MATCH_STARTED:
             if not xpDuringWarmup:
                 messagePlayer('XP is set to only be earned when a match starts')
+                return
+                
+        if self.controllingbot:
+            if reason != 'winning the round!':
+                messagePlayer('XP can not be earned while controlling a bot', self.index)
                 return
         
         self.stats[self.getClass()]['XP'] += xp
@@ -728,7 +734,7 @@ def defusedBomb(e):
 def endedRound(e):
     for player in PlayerIter():
         if e['winner'] == player.team_index:
-            players.from_userid(player.userid).giveXP(roundWinXP, "wining the round!")    
+            players.from_userid(player.userid).giveXP(roundWinXP, "winning the round!")    
     saveDatabase()
     
 MATCH_STARTED = False
@@ -1268,6 +1274,18 @@ def on_player_run_command(player, user_cmd):
                             player.dashMessage = True
                 
             player.lastTimeTick = time.time()
+            
+@Event('bot_takeover')
+def bot_takeover(e):
+    player = players.from_userid(e['userid'])
+    player.controllingbot = True
+            
+@Event('round_start')
+def startedRound(e):
+    for player in PlayerIter():
+        if not player.is_bot():
+            player = players.from_userid(player.userid)
+            player.controllingbot = False
         
 @Event('player_spawn')
 def spawnPlayer(e):
