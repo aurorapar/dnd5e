@@ -1078,7 +1078,6 @@ def formatDamage(attacker, victim, damage, weapon=None):
 def blindedPlayer(e):
     player = players.from_userid(e['userid'])
     if player.getRace() == tiefling.name:
-        return
         player.set_property_float('m_flFlashDuration', 0.0)
     
 @Event('player_death')
@@ -1594,48 +1593,35 @@ def cast(command, index):
                             messagePlayer('You already used your Breath Weapon this round!', player.index)
                 
                 
-                SCREEN_SPRITE = Model('sprites/white.vmt')
-                SCREEN_SPRITE_OFFSET = Vector(10, 0, 0)
-                def dark(victim):
-                    viewmodel = Entity.from_inthandle(victim.get_property_int('m_hViewModel'))
-                    sprite = create_sprite(origin=NULL_VECTOR, scale=30.0, model=SCREEN_SPRITE)
-                    sprite.set_parent(viewmodel, -1)
-                    sprite.teleport(SCREEN_SPRITE_OFFSET)
-                    Delay(3, sprite.remove)
-                    
-                def create_sprite(origin, scale, model):
-                    """Creates an 'env_sprite' entity.
-
-                    Args:
-                        origin (Vector): Spawn position of the 'env_sprite'.
-                        scale (float): Size of the sprite (max size: 64.0).
-                        model (Model): Appearance of the sprite.
-                    """
-                    sprite = Entity.create('env_sprite')
-                    sprite.model = model
-                    sprite.origin = origin
-                    sprite.set_key_value_float('scale', scale)
-                    sprite.set_key_value_bool('disablereceiveshadows', True)
-                    sprite.set_key_value_float('HDRColorScale', 0)
-                    sprite.render_amt = 1
-                    sprite.render_mode = RenderMode.TRANS_COLOR
-                    sprite.set_key_value_string('rendercolor', '0 0 0')
-                    sprite.render_fx = RenderEffects.NONE
-                    sprite.spawn_flags = 1
-                    sprite.spawn()
-                    return sprite
+                def createSmoke(point):
+                    particle = Entity.create('info_particle_system')
+                    particle.effect_name = 'explosion_smokegrenade'
+                    particle.origin = point
+                    particle.effect_index = string_tables.ParticleEffectNames.add_string(
+                        'explosion_smokegrenade')
+                    particle.start()
                     
                 if player.getRace() == tiefling.name:
                     if ability.lower() == 'darkness':
                         if player.darkness:
-                            player.darkness = 0                            
+                            player.darkness = 0        
+                            
+                            x,y,z = player.get_view_coordinates()
+                            print(x,y,z)
+                            createSmoke(Vector(x+150,y,z))
+                            createSmoke(Vector(x-150,y,z))
+                            createSmoke(Vector(x,y+150,z))
+                            createSmoke(Vector(x,y-150,z))
+                            
+                            createSmoke(Vector(x+150,y,z+60))
+                            createSmoke(Vector(x-150,y,z+60))
+                            createSmoke(Vector(x,y+150,z+60))
+                            createSmoke(Vector(x,y-150,z+60))
                             for target in PlayerIter():
-                                if not target.dead and Vector.get_distance(target.origin, player.origin) <= 700:
+                                if not target.dead and Vector.get_distance(target.origin, player.get_view_coordinates()) <= 500:
                                     target = players.from_userid(target.userid)
-                                    #if target.index != player.index:
-                                    flashPlayer(target)
-                                    Delay(.01, target.set_property_float, ('m_flFlashDuration', 0.0))
-                                    dark(target)
+                                    flashPlayer(target)       
+                                    createSmoke(target.origin)
                                     messagePlayer('You found yourself in magical Darkness!', target.index)
                                     
                         else:
