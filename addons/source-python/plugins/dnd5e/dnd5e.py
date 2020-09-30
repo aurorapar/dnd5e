@@ -1269,7 +1269,7 @@ def perceptionCheck(viewer, player):
         
         if time.time() - player.stealthChecks[viewer] > 3:
             distance = Vector.get_distance(viewer.get_eye_location(), player.get_eye_location())
-            if diceCheck((11 + player.getProficiencyBonus() + distance/750, 'Wisdom'), player, viewer):
+            if diceCheck(((11 if 'Wisdom' in viewer.saves else 8) + player.getProficiencyBonus() + int(750/distance), 'Wisdom'), player, viewer):
                 messagePlayer('You have found a Rogue in hiding! You alerted your team!', viewer.index)
                 messagePlayer('You were spotted!', player.index)
                 unstealth(player)
