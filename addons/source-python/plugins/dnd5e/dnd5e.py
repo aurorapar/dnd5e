@@ -86,6 +86,8 @@ explodedBombXP = 25
 roundWinXP = 50
 rescueXP = 10
 humanXP = 1.1
+
+xpDuringWarmup = False # Set to true to allow earning Xp during warmup
 ###############################################################
 cterrorists = 2
 terrorists = 3
@@ -314,6 +316,10 @@ class RPGPlayer(Player):
         global database
         self.setDefaults()
         
+        if not MATCH_STARTED:
+            if not xpDuringWarmup:
+                messagePlayer('XP is set to only be earned when a match starts')
+                return
         
         self.stats[self.getClass()]['XP'] += xp
         message = "\x06You have earned %s XP"%xp
@@ -724,6 +730,17 @@ def endedRound(e):
         if e['winner'] == player.team_index:
             players.from_userid(player.userid).giveXP(roundWinXP, "wining the round!")    
     saveDatabase()
+    
+MATCH_STARTED = False
+@Event('round_announce_match_start')
+def newMatch(e):
+    global MATCH_STARTED
+    MATCH_STARTED = True
+
+@Event('round_announce_warmup')
+def warmup(e):
+    global MATCH_STARTED
+    MATCH_STARTED = False
     
 @Event('server_spawn')
 def server_spawn(e):
