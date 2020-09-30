@@ -1,4 +1,5 @@
 from messages import SayText2
+from messages import HudMsg
 from pprint import pprint
 from events import Event
 from events.hooks import PreEvent
@@ -79,6 +80,9 @@ debugValue = True
 ###############################################################
 # XP Values
 killXP = 10
+knifeXP = killXP*2
+assistXP = 3
+finishXP = 7
 headshotXP = 14
 plantBombXP = 25
 defuseBombXP = 50
@@ -337,7 +341,7 @@ class RPGPlayer(Player):
         messagePlayer(message, self.index)
         
         if self.getRace() == human.name:
-            bonusXP = int(xp * humanXP - xp)
+            bonusXP = max(1, int(xp * humanXP - xp))
             self.stats[self.getClass()]['XP'] += bonusXP
             messagePlayer("\x06You have earned %s XP for being a Human"%bonusXP, self.index)
             
@@ -639,7 +643,8 @@ def load():
     SayText2("%s - %s has been loaded"%(info.verbose_name,info.version)).send()
     print(("%s - %s has been loaded"%(info.verbose_name,info.version)))
     loadDatabase()
-    loopStealth()
+    dndLoop()
+    hudLoop()
     players = PlayerDictionary(RPGPlayer)
         
     
@@ -1117,10 +1122,18 @@ def killedPlayer(e):
         
         if victim.team_index != attacker.team_index:
         
-            if e['headshot']:
-                attacker.giveXP(headshotXP, 'a headshot!')
+            if 'knife' in e['weapon']:
+                attacker.giveXP(knifeXP, 'a knife kill!')
             else:
-                attacker.giveXP(killXP, 'a kill!')
+                if e['headshot']:
+                    attacker.giveXP(headshotXP, 'a headshot!')
+                else:
+                    if(int(e['assister'])):
+                        assist = players.from_userid(e['assister'])
+                        assist.giveXP(assistXP, 'assisting with a kill!')
+                        attacker.giveXP(finishXP, 'finishing off an enemy!')
+                    else:
+                        attacker.giveXP(killXP, 'a kill!')
         
             if attacker.getClass() == fighter.name:
                 if attacker.getLevel() == 20:
@@ -1186,7 +1199,7 @@ def weapon_fire_post(player):
     weapon.set_datamap_property_float('m_flNextPrimaryAttack', next_attack)
     player.set_datamap_property_float('m_flNextAttack', cur_time)
     
-def loopStealth():
+def dndLoop():
     try:
         for p in PlayerIter():
             player = players.from_userid(p.userid)
@@ -1204,7 +1217,36 @@ def loopStealth():
                     perceptionCheck(viewer, player)  
     except:
         pass
-    Delay(.05, loopStealth)
+    
+    Delay(.05, dndLoop)
+    
+def hudMessage(player):
+    msg = ''
+    if hasattr(player, 'mana'):
+        if player.mana:
+            msg="{0} {1} {2} Mana: {3}\n{4}/{5}XP".format(player.getRace(), player.getClass(), player.getLevel(), player.mana, player.getXP(), player.getLevel()*1000)
+    else:
+        msg ="{0} {1} {2}\n{3}/{4}XP".format(player.getRace(), player.getClass(), player.getLevel(), player.getXP(), player.getLevel()*1000)
+    HudMsg(        
+        message=msg,
+        x=.23,
+        y=-.015,
+        color1=Color(255, 223, 0),
+        color2=Color(255, 225, 0),
+        effect=2,
+        fade_in=0.01,
+        fade_out=1.5,
+        hold_time=.6,
+        fx_time=.10,
+        channel=2
+    ).send(player.index)
+    
+def hudLoop():
+    for player in PlayerIter():
+        player = players.from_userid(player.userid)
+        hudMessage(player)
+        
+    Delay(1.3, hudLoop)
     
 def perceptionCheck(viewer, player):    
     print('perception check')
@@ -1516,8 +1558,9 @@ def spawnPlayer(e):
             formatLine(spell, player.spellbook)
             messagePlayer(spell, player.index)
             
-    if player.getLevel() <= 3:
+    if player.getLevel() <= 2:
         messagePlayer('Type "menu" to access the main menu.', player.index)
+        dndMenu.send(player.index)
 
 abilities = {
     'second wind',
