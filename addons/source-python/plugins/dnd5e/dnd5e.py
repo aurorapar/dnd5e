@@ -1673,7 +1673,7 @@ def cast(command, index):
                         if not player.getLevel() >= 3:
                             return
                         if not player.mana >= 15:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 15), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 15), player.index)
                             return
                         target = player.get_view_player()
                         if not target:
@@ -1698,7 +1698,7 @@ def cast(command, index):
                         if not player.getLevel() >= 3:
                             return
                         if not player.mana >= 10:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 15), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 15), player.index)
                             return
                         player.mana -= 10
                         player.spellCooldown = time.time()
@@ -1718,7 +1718,7 @@ def cast(command, index):
                         if not player.getLevel() >= 5:
                             return
                         if not player.mana >= 30:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 30), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 30), player.index)
                             return
                         if amount.startswith('weapon_'):
                             amount = amount.replace('weapon_','')
@@ -1734,7 +1734,7 @@ def cast(command, index):
                         if not player.getLevel() >= 5:
                             return
                         if not player.mana >= 50:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 50), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 50), player.index)
                             return
                         target = player.get_view_player()
                         if not target:
@@ -1782,7 +1782,7 @@ def cast(command, index):
                         if not player.getLevel() >= 9:
                             return
                         if not player.mana >= 20:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 20), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 20), player.index)
                             return
                         target = player.get_view_player()
                         if not target:
@@ -1806,7 +1806,7 @@ def cast(command, index):
                         if not player.getLevel() >= 11:
                             return
                         if not player.mana >= 50:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 50), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 50), player.index)
                             return
                         target = player.get_view_player()
                         if not target:
@@ -1826,7 +1826,7 @@ def cast(command, index):
                         if not player.getLevel() >= 15:
                             return
                         if not player.mana >= 50:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 50), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 50), player.index)
                             return
                         
                         if hasattr(player, 'spiritguardians'):
@@ -1885,7 +1885,7 @@ def cast(command, index):
                         if not player.getLevel() >= 20:
                             return
                         if not player.mana >= 100:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 100), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 100), player.index)
                             return
                         
                         resMenu = PagedMenu(title="[D&D] Resurrection Menu")
@@ -1901,7 +1901,7 @@ def cast(command, index):
                         if not player.getLevel() >= 1:
                             return
                         if not player.mana >= 10:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 10), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 10), player.index)
                             return
                         
                         player.mana -= 10
@@ -1912,7 +1912,7 @@ def cast(command, index):
                         if not player.getLevel() >= 1:
                             return
                         if not player.mana >= 10:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 10), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 10), player.index)
                             return
                         
                         player.mana -= 10
@@ -1923,7 +1923,7 @@ def cast(command, index):
                         if not player.getLevel() >= 2:
                             return
                         if not player.mana >= 10:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 10), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 10), player.index)
                             return
                         
                         target = player.get_view_player()
@@ -1943,7 +1943,7 @@ def cast(command, index):
                         if not player.getLevel() >= 2:
                             return
                         if not player.mana >= 10:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 10), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 10), player.index)
                             return
                         
                         player.mana -= 10
@@ -1970,7 +1970,7 @@ def cast(command, index):
                         if not player.getLevel() >= 3:
                             return
                         if not player.mana >= 10:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 10), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 10), player.index)
                             return
                         
                         player.mana -= 10
@@ -1983,7 +1983,7 @@ def cast(command, index):
                         if not player.getLevel() >= 3:
                             return
                         if not player.mana >= 20:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 20), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 20), player.index)
                             return
                         
                         player.mana -= 20
@@ -1996,7 +1996,7 @@ def cast(command, index):
                         if not player.getLevel() >= 4:
                             return
                         if not player.mana >= 20:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 20), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 20), player.index)
                             return
                         
                         target = player.get_view_player()
@@ -2021,7 +2021,7 @@ def cast(command, index):
                         if not player.getLevel() >= 5:
                             return
                         if not player.mana >= 25:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 25), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 25), player.index)
                             return
                         playerStartLoc = player.origin
                         destination = player.eye_location + player.view_vector * 1000
@@ -2059,7 +2059,7 @@ def cast(command, index):
                         if not player.getLevel() >= 5:
                             return
                         if not player.mana >= 30:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 30), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 30), player.index)
                             return
                             
                         player.mana -= 30
@@ -2089,7 +2089,7 @@ def cast(command, index):
                         if not player.getLevel() >= 7:
                             return
                         if not player.mana >= 35:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 35), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 35), player.index)
                             return
                             
                         player.mana -= 35
@@ -2107,7 +2107,7 @@ def cast(command, index):
                         if not player.getLevel() >= 7:
                             return
                         if not player.mana >= 35:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 35), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 35), player.index)
                             return
                             
                         player.mana -= 35
@@ -2124,7 +2124,7 @@ def cast(command, index):
                         if not player.getLevel() >= 9:
                             return
                         if not player.mana >= 40:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 40), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 40), player.index)
                             return
                             
                         player.mana -= 40
@@ -2138,7 +2138,7 @@ def cast(command, index):
                         if not player.getLevel() >= 9:
                             return
                         if not player.mana >= 40:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 40), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 40), player.index)
                             return
                             
                         target = player.get_view_player()
@@ -2163,7 +2163,7 @@ def cast(command, index):
                         if not player.getLevel() >= 11:
                             return
                         if not player.mana >= 50:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 50), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 50), player.index)
                             return
                             
                         player.mana -= 50
@@ -2174,7 +2174,7 @@ def cast(command, index):
                         if not player.getLevel() >= 11:
                             return
                         if not player.mana >= 40:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 40), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 40), player.index)
                             return
                             
                         player.mana -= 40
@@ -2192,7 +2192,7 @@ def cast(command, index):
                         if not player.getLevel() >= 15:
                             return
                         if not player.mana >= 80:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 80), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 80), player.index)
                             return
                             
                         target = player.get_view_player()
@@ -2227,7 +2227,7 @@ def cast(command, index):
                         if not player.getLevel() >= 13:
                             return
                         if not player.mana >= 40:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 40), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 40), player.index)
                             return
                         
                         trueSeeing(player, 10)
@@ -2236,7 +2236,7 @@ def cast(command, index):
                         if not player.getLevel() >= 17:
                             return
                         if not player.mana >= 100:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 100), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 100), player.index)
                             return
                             
                         player.mana -= 100
@@ -2274,7 +2274,7 @@ def cast(command, index):
                         if not player.getLevel() >= 20:
                             return
                         if not player.mana >= 120:
-                            messagePlayer('You do not have enough mana for this spell %s/%s'%(player.mana, 120), player.index)
+                            messagePlayer('You do not have enough mana for this spell (Have %s/ Need %s)'%(player.mana, 120), player.index)
                             return
                             
                         player.mana -= 120
