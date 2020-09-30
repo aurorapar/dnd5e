@@ -323,7 +323,7 @@ class RPGPlayer(Player):
         
         if not MATCH_STARTED:
             if not xpDuringWarmup:
-                messagePlayer('XP is set to only be earned when a match starts')
+                messagePlayer('XP is set to only be earned when a match starts'self, index)
                 return
                 
         if self.controllingbot:
