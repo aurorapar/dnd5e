@@ -299,6 +299,8 @@ class RPGPlayer(Player):
         self.saves = []
         self.spellbook = None
         self.controllingbot = False
+        self.queuedrace = None
+        self.queuedclass = None
         if getSteamid(self.userid) in database:
             self.stats = database[getSteamid(self.userid)]
         else:
@@ -385,7 +387,7 @@ class RPGPlayer(Player):
                 self.saves.append(save)
             #necessary for new players
             if 'Race' in self.stats.keys():
-                self.setRace(self.getRace())
+                self.setRace(self.getRace(), False)
             else:
                 self.setRace(Race.defaultRace.name)
         else:
@@ -395,7 +397,7 @@ class RPGPlayer(Player):
     def getRace(self):
         return self.stats['Race']
         
-    def setRace(self, race):
+    def setRace(self, race, message=True):
         
         r = None
         if race in Race.races:
@@ -408,7 +410,8 @@ class RPGPlayer(Player):
             error("%S IS NOT A VALID RACE"%race)
         
         self.stats['Race'] = r.name
-        messagePlayer('You are now a %s'%r.name, self.index)
+        if message:
+            messagePlayer('You are now a %s'%r.name, self.index)
         for save in r.saves:
             self.save.append(save)                
             
@@ -526,7 +529,16 @@ def createConfirmationMenu(obj, index):
                 if choice.value in DNDClass.classes:
                     player.setClass(choice.value)
             else:
-                messagePlayer("You have to be dead to change your race or class.", index)
+                if choice.value in Race.races:
+                    player.queuedrace = choice.value
+                if choice.value in DNDClass.classes:
+                    if player.meetsClassRequirements(choice.value):
+                        player.queuedclass = choice.value
+                    else:
+                        messagePlayer("You haven't unlocked %s"%choice.value.name, player.index)
+                        return
+                msg = "You will spawn as a %s %s"%((player.queuedrace.name if player.queuedrace else player.getRace(), player.queuedclass.name if player.queuedclass else player.getClass()))
+                messagePlayer(msg, player.index)
 
     confirmationMenu = PagedMenu(title="Play a %s?"%obj.name)
     confirmationMenu.append(PagedOption("Yes", obj))
@@ -1332,6 +1344,14 @@ def startedRound(e):
 @Event('player_spawn')
 def spawnPlayer(e):
     player = players.from_userid(e['userid'])
+    
+    if player.queuedclass:
+        player.setClass(player.queuedclass)
+        player.queuedclass = None
+    if player.queuedrace:
+        player.setRace(player.queuedrace)
+        player.queuedrace = None
+    
     
     player.maxhealth = 100            
     player.spawnloc = player.origin    
