@@ -87,6 +87,26 @@ humanXP = 1.1
 ###############################################################
 cterrorists = 2
 terrorists = 3
+###############################################################
+
+sounds = {  'fire':'weapons/molotov/fire_ignite_1.wav',
+            'taser':'weapons/taser/taser_hit.wav',
+            'flashbang':'weapons/flashbang/flashbang_explode2.wav',
+            'levelup':'ui/xp_levelup.wav',
+            'heal':'items/medshot4.wav',
+            'knife':'weapons/knife/knife_hit2.wav',
+            'wound':'physics/flesh/flesh_impact_bullet5.wav',
+            'medkit':'items/medcharge4.wav',
+            'water':'player/water/pl_wade2.wav',
+            'bomb':'weapons/c4/c4_exp_deb1.wav',
+            'rocks':'physics/destruction/smash_rockcollapse1.wav',
+            'chicken':'ambient/creatures/chicken_panic_03.wav',
+            'steam':'ambient/machines/steam_release_2.wav'
+        }
+            
+            
+
+###############################################################
 
 terroristModels = ['tm_anarchist.mdl','tm_anarchist_varianta.mdl','tm_anarchist_variantb.mdl','tm_anarchist_variantc.mdl','tm_anarchist_variantd.mdl',
                 'tm_balkan.mdl', 'tm_balkan_varianta.mdl','tm_balkan_variantb.mdl','tm_balkan_variantc.mdl','tm_balkan_variantd.mdl',
@@ -315,8 +335,7 @@ class RPGPlayer(Player):
         if self.getLevel() < 20:
             xpNeeded = self.getLevel() * 1000
             while self.getXP() >= xpNeeded:
-                sound = Sound(sample='ui/xp_levelup.wav', origin=self.origin)
-                sound.play()
+                playSound('ui/xp_levelup.wav', player=self)
                 self.stats[self.getClass()]['Level'] += 1
                 self.stats[self.getClass()]['XP'] -= xpNeeded
                 messageServer('\x04Congratulations, %s! They are now Level %s!'%(self.name, self.getLevel()))
@@ -443,7 +462,7 @@ class RPGPlayer(Player):
             healed = self.health
             self.health = min(self.maxhealth, self.health + amount)
             healed = self.health - healed
-            Sound(sample='items/medshot4.wav', origin=self.origin, volume=.5).play()
+            playSound('items/medshot4.wav', player=self)
             return healed
         return 0
         
@@ -889,7 +908,7 @@ def damagePlayer(e):
                                     else:
                                         return
                                 hurt(attacker,players.from_userid(cleaveTarget.userid),int(damage/2))  
-                                Sound(sample='weapons/knife/knife_hit2.wav', origin=attacker.origin, direction=player.view_vector).play()
+                                playSound('weapons/knife/knife_hit2.wav', player=attacker.origin)
                                 messagePlayer('You cleaved into %s!'%cleaveTarget.name, attacker.index)
                             
                     if attacker.getLevel() >= 7:
@@ -1555,8 +1574,7 @@ def cast(command, index):
                             player.breathweapon = 0
                             loc = player.origin + player.view_vector*75
                             createFire(loc, 1.5)
-                            sound = Sound(sample='weapons/molotov/fire_ignite_1.wav', origin=loc, volume=.5)
-                            sound.play()
+                            playSound('weapons/molotov/fire_ignite_1.wav', point=loc)
                             damage = dice(3,8)
                             for target in PlayerIter():
                                 if target.get_team() != player.get_team() and not target.dead and Vector.get_distance(target.origin, player.origin) <= 400:
@@ -1630,7 +1648,8 @@ def cast(command, index):
                                     messagePlayer('You Inflicted Wounds for %s damage!'%damage, player.index)
                                     messagePlayer('You were Inflicted with Wounds!', target.index)
                                     hurt(player, target, amount, spell=True)
-                                    Sound(sample='physics/flesh/flesh_impact_bullet5.wav', origin=target.origin, direction=player.view_vector, volume=.5).play()
+                                    playSound('physics/flesh/flesh_impact_bullet5.wav', player=target)
+                                    
                                     player.spellCooldown = time.time()
                                     player.mana -= amount
                                     
@@ -1738,9 +1757,7 @@ def cast(command, index):
                             messagePlayer('You have no more uses of Channel Divinity', player.index)                            
                             return
                         
-                        sound = Sound(sample='items/medcharge4.wav', origin=player.origin, volume=.5)
-                        sound.play()
-                        Delay(.75, sound.stop)
+                        playSound('items/medcharge4.wav', player=player, duration=.75)                        
                         player.channels -= 1
                         player.spellCooldown = time.time()
                         if player.alignment.lower() == 'good':
@@ -1920,7 +1937,7 @@ def cast(command, index):
                             hurt(player, target, damage)
                             messagePlayer('Your Magic Missiles hit for %s damage!'%damage, player.index)
                             messagePlayer('You were hit by Magic Missiles!', target.index)
-                            Sound(sample='physics/flesh/flesh_impact_bullet1.wav', origin=target.origin, direction=player.view_vector, volume=.5).play()
+                            playSound('physics/flesh/flesh_impact_bullet1.wav', player=target)
                             
                     if ability.lower() == 'thunderwave':
                         if not player.getLevel() >= 2:
@@ -1932,7 +1949,7 @@ def cast(command, index):
                         player.mana -= 10
                         player.spellCooldown = time.time()    
                         targets = list(PlayerIter())
-                        thunder_sound = Sound(sample='weapons/flashbang/flashbang_explode2.wav', origin=player.origin, direction=player.view_vector, volume=.5)
+                        playSound('weapons/flashbang/flashbang_explode2.wav', player=player)
                         if not thunder_sound.is_precached:
                             thunder_sound.precache()
                         thunder_sound.play()
@@ -1993,7 +2010,7 @@ def cast(command, index):
                             if t.get_team() != player.get_team() and not t.dead:
                                 if Vector.get_distance(player.origin, t.origin) <= 500:
                                     t = players.from_userid(t.userid)
-                                    Sound(sample='player/water/pl_wade2.wav', origin=t.origin, volume=.5).play()
+                                    playSound('player/water/pl_wade2.wav', player=t)
                                     if not diceCheck((11+player.getProficiencyBonus(), 'Dexterity'), t, player):
                                         t.armor = 0
                                         t.has_helmet = False
@@ -2034,8 +2051,7 @@ def cast(command, index):
                             player.origin = playerStartLoc
                             messagePlayer('Your Misty Step failed! (Make sure you look high enough)', player.index)
                         else:
-                            sound = Sound(sample='ambient/machines/steam_release_2.wav', origin=playerStartLoc, volume=.5)
-                            sound.play()
+                            playSound('ambient/machines/steam_release_2.wav', player=player)
                             player.mana -= 25
                             player.spellCooldown = time.time()
                             
@@ -2052,9 +2068,7 @@ def cast(command, index):
                         point = player.get_view_coordinates()
                         x,y,z = player.get_view_coordinates()
                         vecs = [Vector(x+25,y,z), Vector(x-25,y,z), Vector(x,y+25,z), Vector(x,y-25,z)]
-                        sound = Sound(sample='weapons/molotov/fire_ignite_1.wav', origin=Vector(x,y,z), volume=.5)
-                        sound.play()
-                        Delay(1, sound.stop)
+                        playSound('weapons/molotov/fire_ignite_1.wav', point=Vector(x,y,z), duration=1)                        
                         for x in range(0,4):
                             createFire(vecs[x], 1)
                         damage = dice(5,8)
@@ -2138,7 +2152,7 @@ def cast(command, index):
                         
                                 mdl = target.model
                                 target.model = Model('models/chicken/chicken.mdl')
-                                Sound(sample='ambient/creatures/chicken_panic_03.wav', origin=target.origin).play()
+                                playSound('ambient/creatures/chicken_panic_03.wav', point=target.origin)
                                 for weapon in target.weapons():
                                     Delay(3, target.give_named_item, (weapon.weapon_name, 0, None, False, NULL))
                                     weapon.remove()
@@ -2165,7 +2179,7 @@ def cast(command, index):
                             
                         player.mana -= 40
                         player.spellCooldown = time.time()   
-                        Sound(sample='physics/destruction/smash_rockcollapse1.wav', origin=player.get_view_coordinates(), volume=.5).play()
+                        playSound('physics/destruction/smash_rockcollapse1.wav', point=player.get_view_coordinates())
                         door = Entity.create('prop_physics_multiplayer')    
                         door.model = Model('models/props_fortifications/concrete_wall001_140_reference.mdl')
                         door.angles = QAngle(270,player.angles[1],0)
@@ -2200,7 +2214,7 @@ def cast(command, index):
                                         targets.append(t)
                             for t in targets:
                                 t = players.from_userid(t.userid)
-                                Sound(sample='weapons/taser/taser_hit.wav', origin=t.origin, volume=.5).play()
+                                playSound('weapons/taser/taser_hit.wav', point=t.origin)
                                 messagePlayer('Your Chain Lightning bounced from %s!'%t.name, player.index)
                                 if not diceCheck((11+player.getProficiencyBonus(), 'Dexterity'), t, player):
                                     hurt(player, t, damage)
@@ -2231,7 +2245,7 @@ def cast(command, index):
                         def checkMissile(missile, player):
                             if missile in EntityIter():
                                 damage = dice(12,8)
-                                Sound(sample='weapons/c4/c4_exp_deb1.wav', origin=missile.origin).play()
+                                playSound('weapons/c4/c4_exp_deb1.wav', point=missile.origin)
                                 createFire(missile.origin,2)
                                 for target in PlayerIter():
                                     if not target.dead:
@@ -2301,6 +2315,21 @@ def cast(command, index):
     
     return CommandReturn.BLOCK
     
+def playSound(sound, point=None, player=None, duration=False):
+    if not point and not player:
+        for p in PlayerIter():
+            p.play_sound(sound, sound_time=duration)
+            
+    if point:
+        for p in PlayerIter():
+            if Vector.get_distance(p.origin, point) <= 950:
+                p.play_sound(sound, sound_time=duration)
+                
+    if not point and player:
+        for p in PlayerIter():
+            if Vector.get_distance(p.origin, player.origin) <= 950:
+                p.play_sound(sound, sound_time=duration)
+    
 def trueSeeing(player, duration=10):
     if not player.dead:
         for target in PlayerIter():
@@ -2343,7 +2372,7 @@ def wallOfFire(player):
     Ax,Ay,Az = player.origin
     Bx,By,Bz = player.get_view_coordinates()
     createFire(player.get_view_coordinates(), duration)
-    sound = Sound(sample='weapons/molotov/fire_ignite_1.wav', origin=player.get_view_coordinates(), volume=.5).play()
+    playSound('weapons/molotov/fire_ignite_1.wav', point=player.get_view_coordinates())
     for i in range(25,int(500/2),25):                
         BC = i
         AB = Vector.get_distance(Vector(Bx,By,Bz), Vector(Ax,Ay,Az))
