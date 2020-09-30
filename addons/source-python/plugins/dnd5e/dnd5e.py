@@ -65,6 +65,7 @@ import shutil
 import json
 import time
 import datetime
+import traceback
 
 database = {}
 databaseLocation = join(dirname(__file__), "dnd5e.db")
@@ -431,7 +432,7 @@ class RPGPlayer(Player):
         return False
         
     def getProficiencyBonus(self):
-        return (self.getLevel() - 1) / 4
+        return int((self.getLevel() - 1) / 4)
         
     def getSaves(self):
     
@@ -1321,7 +1322,7 @@ def spawnPlayer(e):
             formatLine(spell, player.spellbook)
             messagePlayer('!cast Spiritual Weapon {weapon} - 30 mana - Give yourself a weapon (give command)', player.index) 
             spell = '!cast Curse - 30 mana - Target takes additional 3d8 damage from all sources (Wisdom save negates)'
-            formatline(spell, player.spellbook)
+            formatLine(spell, player.spellbook)
             messagePlayer('!cast Curse - 30 mana - Target takes additional 3d8 damage from all sources (Wisdom save negates)', player.index)
             
         if player.getLevel() >= 7:
@@ -1660,10 +1661,11 @@ def cast(command, index):
                             return
                         target = players.from_userid(target.userid)
                         if target.team != player.team and not target.dead:
+                            
                             player.mana -= 15
                             player.spellCooldown = time.time()
-                            damage = dice((3+player.getLevel()/5),8)
-                            if diceCheck((11 + player.getProficiencyBonus(), 'Dexterity'), target):
+                            damage = dice(int(3+player.getLevel()/5),8)
+                            if diceCheck((11 + player.getProficiencyBonus(), 'Dexterity'), target, player):
                                 messagePlayer('You smote %s for %s damage!'%(target.name, int(damage/2)), player.index)
                                 messagePlayer('You were smitten!', target.index)
                                 hurt(player, target, int(damage/2))                                
@@ -1722,7 +1724,7 @@ def cast(command, index):
                         if target.team != player.team and not target.dead:
                             player.mana -= 50
                             player.spellCooldown = time.time()       
-                            if not diceCheck((11 + player.getProficiencyBonus(), 'Wisdom'), target):
+                            if not diceCheck((11 + player.getProficiencyBonus(), 'Wisdom'), target, player):
                                 target.curse = True
                                 messagePlayer('You have Cursed %s'%target.name, player.index)
                                 messagePlayer('You have been Cursed!', target.index)
@@ -1796,7 +1798,7 @@ def cast(command, index):
                         if target.team != player.team and not target.dead:
                             player.mana -= 50
                             player.spellCooldown = time.time()
-                            if diceCheck((11 + player.getProficiencyBonus(), 'Charisma'), target):
+                            if diceCheck((11 + player.getProficiencyBonus(), 'Charisma'), target, player):
                                 messagePlayer('You have failed to Banish!'%target.name, player.index)
                             else:
                                 messagePlayer('You have Banished %s back to spawn!'%target.name, player.index)
@@ -1910,7 +1912,7 @@ def cast(command, index):
                         target = player.get_view_player()
                         if not target:
                             return
-                            
+                        target = players.from_userid(target.userid)
                         if not target.dead and target.get_team() != player.get_team():
                             player.mana -= 10
                             player.spellCooldown = time.time()        
