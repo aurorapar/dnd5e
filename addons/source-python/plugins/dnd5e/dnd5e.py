@@ -355,6 +355,7 @@ class RPGPlayer(Player):
         if self.getLevel() < 20:
             xpNeeded = self.getLevel() * 1000
             while self.getXP() >= xpNeeded:
+                xpNeeded = self.getLevel() * 1000
                 playSound('ui/xp_levelup.wav', player=self)
                 self.stats[self.getClass()]['Level'] += 1
                 self.stats[self.getClass()]['XP'] -= xpNeeded
@@ -1303,7 +1304,7 @@ def on_player_run_command(player, user_cmd):
     player = players.from_userid(player.userid)
     
     if not player.is_bot():
-        if player.getClass() == rogue.name and player.getLevel() > 3:
+        if player.getClass() == rogue.name and player.getLevel() >= 3:
             
             if user_cmd.buttons & PlayerButtons.SPEED:
                 if player.endurance > 0:
@@ -1344,6 +1345,7 @@ def startedRound(e):
 @Event('player_spawn')
 def spawnPlayer(e):
     player = players.from_userid(e['userid'])
+    player.mana = 0
     
     if player.queuedclass:
         player.setClass(player.queuedclass)
