@@ -493,7 +493,7 @@ class RPGPlayer(Player):
             return False
         if not self.getClass() == rogue.name:
             return False
-        return time.time() - self.stealth > (6.225 - (4.5/20)*self.getLevel() - (1 if player.getRace() == halfling.name else 0))
+        return time.time() - self.stealth > (6.225 - (4.5/20)*self.getLevel() - (1 if self.getRace() == halfling.name else 0))
         
         
 players = PlayerDictionary(RPGPlayer)
