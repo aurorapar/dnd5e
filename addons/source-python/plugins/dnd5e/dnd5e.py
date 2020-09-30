@@ -1271,7 +1271,7 @@ def spawnPlayer(e):
         
     if player.getRace() == tiefling.name:
         player.darkness = 1
-        messagePlayer('!cast Darkness - Blinds all nearby players!',player.index)
+        messagePlayer('!cast Darkness - Creates blinding cloud where you look!',player.index)
         
     if player.getClass() == fighter.name:
         player.secondWind = 1
