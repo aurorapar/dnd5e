@@ -163,7 +163,6 @@ def diceCheck(check, player, attacker):
     rolledAdvantage = False
     
     result = dice(1,20) + bonus + (player.getProficiencyBonus() if save in player.getSaves() else 0)
-    
     if result < dc:
         
         if hasattr(player, 'indomitable'):  # or (check[1] == 'Dexterity' and player.getClass() == rogue.name and player.getLevel() >= 5) or (player.getRace() == gnome.name and save in ['Intelligence', 'Charisma', 'Wisdom']):
@@ -658,6 +657,7 @@ def load():
     loadDatabase()
     dndLoop()
     hudLoop()
+    perceptionLoop()
     players = PlayerDictionary(RPGPlayer)
         
     
@@ -1216,22 +1216,24 @@ def dndLoop():
     try:
         for p in PlayerIter():
             player = players.from_userid(p.userid)
-            if checkStealth(player):
-                for v in PlayerIter():    
-                
-                    viewer = players.from_userid(v.userid)
-
-                    if viewer.get_team() == player.get_team():
-                        break
-                     
-                    if viewer.dead or player.dead:
-                        break
-                    
-                    perceptionCheck(viewer, player)  
+            checkStealth(player)                
     except:
         pass
     
     Delay(.05, dndLoop)
+    
+def perceptionLoop():    
+    for v in PlayerIter():    
+        for p in PlayerIter():        
+            if v.get_team() != p.get_team() and not (v.dead or p.dead):
+                player = players.from_userid(p.userid)
+                viewer = players.from_userid(v.userid)
+                if not player.is_bot():
+                    if checkStealth(player):                        
+                        if Vector.get_distance(player.origin,viewer.origin) < 1500:                        
+                            perceptionCheck(viewer, player) 
+        
+    Delay(3, perceptionLoop)
     
 def hudMessage(player):
     msg = ''
@@ -1261,22 +1263,16 @@ def hudLoop():
         
     Delay(1.3, hudLoop)
     
-def perceptionCheck(viewer, player):    
-    print('perception check')
-    if player.stealthed():
-        if not viewer in player.stealthChecks.keys():
-            player.stealthChecks[viewer] = time.time() - 4
-        
-        if time.time() - player.stealthChecks[viewer] > 3:
-            distance = Vector.get_distance(viewer.get_eye_location(), player.get_eye_location())
-            if diceCheck(((11 if 'Wisdom' in viewer.saves else 8) + player.getProficiencyBonus() + int(750/distance), 'Wisdom'), player, viewer):
-                messagePlayer('You have found a Rogue in hiding! You alerted your team!', viewer.index)
-                messagePlayer('You were spotted!', player.index)
-                unstealth(player)
-            player.stealthChecks[viewer] = time.time()
+def perceptionCheck(viewer, player):        
+    if player.stealthed():        
+        distance = Vector.get_distance(viewer.get_eye_location(), player.get_eye_location())
+        if diceCheck((11 + player.getProficiencyBonus() + int(750/distance), 'Wisdom'), player, viewer):
+            messagePlayer('You have found a Rogue in hiding! You alerted your team!', viewer.index)
+            messagePlayer('You were spotted!', player.index)
+            unstealth(player)
+
         
 def checkStealth(player):    
-    
     if player.stealthed():   
         if not player.stealthMessage:
             messagePlayer('You are now stealthed', player.index)
