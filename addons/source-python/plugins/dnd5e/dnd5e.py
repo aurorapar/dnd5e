@@ -47,10 +47,6 @@ from commands.say import SayFilter
 from commands.client import ClientCommand
 from commands import CommandReturn
 from itertools import chain 
-import sqlalchemy as sql
-from sqlalchemy.sql import select
-from sqlalchemy.sql import update
-from sqlalchemy.ext.declarative import declarative_base
 from engines.precache import Model
 from engines.sound import Sound
 from engines.trace import engine_trace
@@ -69,14 +65,17 @@ import json
 import time
 import datetime
 import traceback
+import requests
 
 database = {}
 databaseLocation = join(dirname(__file__), "dnd5e.db")
+restfulFile = join(dirname(__file__), "restfulURL.txt")
 bugFile = join(dirname(__file__), 'bugreports.txt')
 webDatabase = ''
 sourceFiles = ''
 release = ''
 debugValue = True
+restfulURL = None
 ###############################################################
 # XP Values
 killXP = 10
@@ -142,6 +141,16 @@ rifles = {'galilar', 'ak47', 'ssg08', 'sg556', 'famas', 'm4a1', 'm4a1_silencer',
 bigsnipers = {'awp', 'g3sg1', 'scar20'}
 grenades = {'molotov', 'decoy', 'flashbang', 'hegrenade', 'smokegrenade', 'incgrenade'}
 allWeapons = list(chain(knife, pistols, heavypistols, taser, shotguns, lmg, smg, rifles, bigsnipers, grenades))
+
+class DateTimeEncoder(json.JSONEncoder):
+
+    def default(self, obj):
+        if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+            return obj.isoformat()
+        elif isinstance(obj, datetime.timedelta):
+            return (datetime.datetime.min + obj).time().isoformat()
+
+        return super(DateTimeEncoder, self).default(obj)
 
 def dice(number, sides):
     total = 0
@@ -362,7 +371,7 @@ class RPGPlayer(Player):
                 if self.getLevel() >= 20:
                     break
         
-        database[getSteamid(self.userid)] = self.stats
+        database[getSteamid(self.userid)] = self.stats        
             
     def getClass(self):
         return self.stats['Class']
@@ -501,6 +510,19 @@ class RPGPlayer(Player):
             self.stealth = time.time()
         return time.time() - self.stealth > (6.225 - (4.5/20)*self.getLevel() - (1 if self.getRace() == halfling.name else 0))
         
+    def postStats(self):
+        if restfulURL:
+            data = {'action':'updatestats',
+            'value' : {
+              'steamid':getSteamid(self.userid),
+              'name':self.name,
+              'last_played':datetime.datetime.fromtimestamp(time.time()),
+              'classname':self.getClass(),
+              'level':self.getLevel(),
+              'xp':self.getXP()
+                }
+            }
+            resp = requests.post(restfulURL, data=json.dumps(data, cls=DateTimeEncoder), headers={'Content-Type': 'application/json'})
         
 players = PlayerDictionary(RPGPlayer)
 
@@ -661,16 +683,19 @@ def load():
     dndLoop()
     hudLoop()
     perceptionLoop()
-    players = PlayerDictionary(RPGPlayer)
-        
+    players = PlayerDictionary(RPGPlayer)        
     
 def loadDatabase():
-    global database
+    global database, restfulURL
     if not os.path.exists(databaseLocation):
         newDatabase()
     else:
         with open(databaseLocation, 'r') as db:
             database = json.load(db)
+            
+    if os.path.exists(restfulFile):    
+        with open(restfulFile, 'r') as f:
+            restfulURL = f.readline()
             
 def newDatabase():
     global database, players
@@ -755,7 +780,8 @@ def defusedBomb(e):
 def endedRound(e):
     for player in PlayerIter():
         if e['winner'] == player.team_index:
-            players.from_userid(player.userid).giveXP(roundWinXP, "winning the round!")    
+            players.from_userid(player.userid).giveXP(roundWinXP, "winning the round!")   
+        Delay(2.5, players.from_userid(player.userid).postStats)
     saveDatabase()
     
 MATCH_STARTED = False
@@ -768,11 +794,6 @@ def newMatch(e):
 def warmup(e):
     global MATCH_STARTED
     MATCH_STARTED = False
-    
-@Event('server_spawn')
-def server_spawn(e):
-    
-    saveWebDB()    
     
 @SayFilter
 def filterChat(command, index, team_only):
@@ -2601,135 +2622,3 @@ def newWeapon():
 
     entity.spawn()
     return entity
-    
-Base = declarative_base()
-class DNDDBUser(Base):
-    __tablename__ = 'DNDUSER'
-    
-    ID = sql.Column('ID', sql.Integer(), primary_key=True)
-    STEAMID = sql.Column('STEAMID', sql.String(25))
-    NAME = sql.Column('NAME', sql.String(30))
-    LAST_PLAYED = sql.Column('LAST_PLAYED', sql.DateTime)
-    
-    def __repr__(self):
-        return "<DNDUser(STEAMID='{0}', NAME='{1}', LAST_PLAYED='{2}')>".format(
-                            self.STEAMID, self.NAME, self.LAST_PLAYED)
-
-class DNDDBClass(Base):
-    __tablename__ = 'DNDCLASS'
-    
-    ID = sql.Column('ID', sql.Integer(), primary_key=True)
-    NAME = sql.Column('NAME', sql.String(25))
-    
-    def __repr__(self):
-        return "<DNDClass(NAME='{0}')>".format(
-            self.NAME)
-
-class DNDDBXP(Base):
-    __tablename__ = 'DNDXP'
-    
-    ID = sql.Column('ID', sql.Integer(), primary_key=True)     
-    DNDUSERID = sql.Column('DNDUSERID', sql.Integer())
-    DNDCLASSID = sql.Column('DNDCLASSID', sql.Integer())
-    LEVEL = sql.Column('LEVEL', sql.Integer())
-    XP = sql.Column('XP', sql.Integer())
-        
-    def __repr__(self):
-        return "<DNDXP(DNDUSERID='{0}', DNDCLASSID='{1}', LEVEL='{2}', XP='{3}')>".format(
-            self.DNDUSERID, self.DNDCLASSID, self.LEVEL, self.XP)
-    
-    
-def saveWebDB(first=None):
-
-    jsonDB = {}
-    with open(databaseLocation, 'r') as f:
-        jsonDB = json.load(f)
-        
-    dbCredentialsFile = join(dirname(__file__), 'databasecreds.txt')
-    if not os.path.exists(dbCredentialsFile):
-        return
-        
-    with open(dbCredentialsFile, 'r') as f:
-        host = f.readline().strip()
-        user = f.readline().strip()
-        password = f.readline().strip()
-        db = f.readline().strip()        
-    
-    messageServer('trying to connect')
-    engine = sql.create_engine('mysql+pymysql://%s:%s@%s/%s'%(user,password,host,db))
-    connection = engine.connect()    
-        
-    metadata = sql.MetaData()
-    
-    Base.metadata.create_all(engine)
-
-    Session = sql.orm.sessionmaker()
-    Session.configure(bind=engine)
-    session = Session()
-    
-    for dndclass in DNDClass.classes:
-        
-        if not session.query(DNDDBClass.NAME).filter_by(NAME=dndclass.name).scalar():
-            #print('%s does not exist'%dndclass)
-            newClass = DNDDBClass(NAME=dndclass.name)
-            session.add(newClass)
-    thread = GameThread(target=session.commit())
-    thread.start()
-    
-    for steamid in jsonDB.keys():
-        t = datetime.datetime.fromtimestamp(jsonDB[steamid]['Last Played'])
-        if not session.query(DNDDBUser.STEAMID).filter_by(STEAMID=steamid).scalar():
-            
-            newPlayer = DNDDBUser(
-                STEAMID=steamid, 
-                NAME=jsonDB[steamid]['name'], 
-                LAST_PLAYED=t
-            )
-            
-            session.add(newPlayer)
-            session.commit()
-            
-            for c in DNDClass.classes:
-                cls = c.name
-                    
-                dndclass = session.query(DNDDBClass).filter_by(NAME=cls).first()
-                
-                newXP = DNDDBXP(
-                    DNDUSERID=newPlayer.ID, 
-                    DNDCLASSID=dndclass.ID, 
-                    LEVEL=jsonDB[steamid][cls]['Level'], 
-                    XP=jsonDB[steamid][cls]['XP']
-                )
-                
-                session.add(newXP)
-                session.commit()
-        else:
-            
-            session.query(DNDDBUser).filter(
-                    DNDDBUser.STEAMID == steamid
-                ).update(
-                { 
-                    DNDDBUser.NAME : jsonDB[steamid]['name'], 
-                    DNDDBUser.LAST_PLAYED : t 
-                }, 
-                synchronize_session='fetch')
-            session.commit()
-            
-            for c in DNDClass.classes:
-                cls = c.name
-                dnduser = session.query(DNDDBUser).filter_by(STEAMID=steamid).first()
-                dndclass = session.query(DNDDBClass).filter_by(NAME=cls).first()
-                
-                session.query(DNDDBXP).filter(
-                        DNDDBXP.DNDUSERID == dnduser.ID, 
-                        DNDDBXP.DNDCLASSID == dndclass.ID
-                    ).update(
-                    {
-                        DNDDBXP.LEVEL : jsonDB[steamid][cls]['Level'],
-                        DNDDBXP.XP : jsonDB[steamid][cls]['XP'],
-                    }, 
-                    synchronize_session='fetch')
-                session.commit()
-                thread = GameThread(target=session.commit())
-                thread.start()
-    messageServer('Web Info Updated')
