@@ -1271,7 +1271,7 @@ def hudLoop():
 def perceptionCheck(viewer, player):        
     if player.stealthed():        
         distance = Vector.get_distance(viewer.get_eye_location(), player.get_eye_location())
-        if diceCheck((11 + player.getProficiencyBonus() + int(750/distance), 'Wisdom'), player, viewer):
+        if diceCheck((11 + player.getProficiencyBonus() + int(750/distance), 'Wisdom'), viewer, player):
             messagePlayer('You have found a Rogue in hiding! You alerted your team!', viewer.index)
             messagePlayer('You were spotted!', player.index)
             unstealth(player)
