@@ -1858,15 +1858,15 @@ def cast(command, index):
                     if ability.lower() == 'curse':
                         if not player.getLevel() >= 5:
                             return
-                        if not player.mana >= 50:
-                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 50), player.index)
+                        if not player.mana >= 30:
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 30), player.index)
                             return
                         target = player.get_view_player()
                         if not target:
                             return
                         target = players.from_userid(target.userid)
                         if target.team != player.team and not target.dead:
-                            player.mana -= 50
+                            player.mana -= 30
                             player.spellCooldown = time.time()       
                             if not diceCheck((11 + player.getProficiencyBonus(), 'Wisdom'), target, player):
                                 target.curse = True
