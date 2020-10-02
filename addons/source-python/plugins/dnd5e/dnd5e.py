@@ -80,6 +80,7 @@ restfulURL = None
 # XP Values
 killXP = 10
 knifeXP = killXP*2
+killSpreeXP = 5
 assistXP = 3
 finishXP = 7
 headshotXP = 14
@@ -89,6 +90,7 @@ explodedBombXP = 25
 roundWinXP = 50
 rescueXP = 10
 humanXP = 1.1
+higherLevelXP = 2
 
 xpDuringWarmup = False # Set to true to allow earning Xp during warmup
 ###############################################################
@@ -512,6 +514,7 @@ class RPGPlayer(Player):
         
     def postStats(self):
         if restfulURL:
+            messagePlayer('Saving your stats online', self.index)
             data = {'action':'updatestats',
             'value' : {
               'steamid':getSteamid(self.userid),
@@ -1158,6 +1161,23 @@ def killedPlayer(e):
         victim.deathspot = victim.origin
         
         if victim.team_index != attacker.team_index:
+            
+            if attacker.index:
+                if not attacker.controllingbot:
+                    attacker.killspree = (1 if not hasattr(attacker, 'killspree') else attacker.killspree + 1)
+                    if attacker.killspree >= 3:
+                        messageServer("%s is on a killspree! Kill them for more XP!"%attacker.name)
+                        attacker.giveXP(5 * (attacker.killspree - 2), "being on a killspree!")
+                        
+            if hasattr(victim, 'killspree'):
+                if victim.killspree >= 3:
+                    messageServer("%s has ended %s's killing spree!"%(attacker.name, victim.name))
+                    attacker.giveXP(5 * victim.killspree, "ending %s's killspree!"%victim.name)
+                    victim.killspree = 0
+                    
+            if not attacker.controllingbot:
+                if victim.getLevel() > attacker.getLevel():
+                    attacker.giveXP((victim.getLevel() - attacker.getLevel()) * higherLevelXP, "killing someone higher level than you!")
         
             if 'knife' in e['weapon']:
                 attacker.giveXP(knifeXP, 'a knife kill!')
@@ -1360,6 +1380,7 @@ def bot_takeover(e):
 @Event('round_start')
 def startedRound(e):
     for player in PlayerIter():
+        player.sentmenu = False
         if not player.is_bot():
             player = players.from_userid(player.userid)
             player.controllingbot = False
@@ -1380,6 +1401,17 @@ def spawnPlayer(e):
     player.maxhealth = 100            
     player.spawnloc = player.origin    
     player.spellbook = PagedMenu(title='[D&D] %s Spells'%player.getClass())
+    
+    if player.getLevel() <= 2:
+        if hasattr(player, 'sentmenu'):
+            if not player.sentmenu:
+                messagePlayer('Type "menu" to access the main menu.', player.index)
+                dndMenu.send(player.index)
+                player.sentmenu = True
+        else:
+            messagePlayer('Type "menu" to access the main menu.', player.index)
+            dndMenu.send(player.index)
+            player.sentmenu = True
     
     if player.getRace() == dwarf.name:
         player.maxhealth += 25
@@ -1602,9 +1634,6 @@ def spawnPlayer(e):
             formatLine(spell, player.spellbook)
             messagePlayer(spell, player.index)
             
-    if player.getLevel() <= 2:
-        messagePlayer('Type "menu" to access the main menu.', player.index)
-        dndMenu.send(player.index)
 
 abilities = {
     'second wind',
