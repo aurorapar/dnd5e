@@ -349,7 +349,6 @@ class RPGPlayer(Player):
             message += " for %s!"%reason
         else:
             message += "!"            
-        message += " %s/%sXP"%(self.getXP(), self.getLevel()*1000)
         messagePlayer(message, self.index)
         
         if self.getRace() == human.name:
@@ -513,19 +512,42 @@ class RPGPlayer(Player):
         return time.time() - self.stealth > (6.225 - (4.5/20)*self.getLevel() - (1 if self.getRace() == halfling.name else 0))
         
     def postStats(self):
-        if restfulURL:
-            messagePlayer('Saving your stats online', self.index)
-            data = {'action':'updatestats',
-            'value' : {
-              'steamid':getSteamid(self.userid),
-              'name':self.name,
-              'last_played':datetime.datetime.fromtimestamp(time.time()),
-              'classname':self.getClass(),
-              'level':self.getLevel(),
-              'xp':self.getXP()
-                }
-            }
-            resp = requests.post(restfulURL, data=json.dumps(data, cls=DateTimeEncoder), headers={'Content-Type': 'application/json'})
+        if not self.is_bot():
+            if restfulURL:
+                for cls in DNDClass.classes:
+                    data = {'action':'updatestats',
+                        'value' : {
+                          'steamid':getSteamid(self.userid),
+                          'name':self.name,
+                          'last_played':datetime.datetime.fromtimestamp(time.time()),
+                          'classname':cls.name,
+                          'level':self.stats[cls.name]['Level'],
+                          'xp':self.stats[cls.name]['XP']
+                            }
+                        }
+
+                    resp = requests.post(restfulURL, data=json.dumps(data, cls=DateTimeEncoder), headers={'Content-Type': 'application/json'})
+                    if not resp.text == '200':
+                        if resp.text == '400':
+                            error("MALFORMED REQUEST - %s %s"%(steamid, name))
+                        else:
+                            error("UNCAUGHT REQUEST ERROR - %s %s"%(steamid, name))
+                    
+            
+    def requestStats(self):
+        if not self.is_bot():
+            if restfulURL:
+                messagePlayer('Retrieving your stats from online', self.index)
+                data = {'action':'getstats',
+                    'value':getSteamid(self.userid) 
+                    } 
+                resp = requests.post(restfulURL, data=json.dumps(data, cls=DateTimeEncoder), headers={'Content-Type': 'application/json'})        
+                
+                if not 'server' in resp.text:
+                    playerStats = json.loads(resp.text)
+                    self.stats[self.getClass()]['Level'] = playerStats[self.getClass()]['Level']
+                    self.stats[self.getClass()]['XP'] = playerStats[self.getClass()]['XP']
+            
         
 players = PlayerDictionary(RPGPlayer)
 
@@ -783,8 +805,10 @@ def defusedBomb(e):
 def endedRound(e):
     for player in PlayerIter():
         if e['winner'] == player.team_index:
-            players.from_userid(player.userid).giveXP(roundWinXP, "winning the round!")   
-        Delay(2.5, players.from_userid(player.userid).postStats)
+            players.from_userid(player.userid).giveXP(roundWinXP, "winning the round!")
+        if restfulURL:
+            Delay(2.45, messagePlayer, ('Saving your stats online', player.index))
+            Delay(2.5, players.from_userid(player.userid).postStats)
     saveDatabase()
     
 MATCH_STARTED = False
@@ -978,7 +1002,7 @@ def damagePlayer(e):
                                     else:
                                         return
                                 hurt(attacker,players.from_userid(cleaveTarget.userid),int(damage/2))  
-                                playSound('weapons/knife/knife_hit2.wav', player=attacker.origin)
+                                playSound('weapons/knife/knife_hit2.wav', player=attacker)
                                 messagePlayer('You cleaved into %s!'%cleaveTarget.name, attacker.index)
                             
                     if attacker.getLevel() >= 7:
@@ -1089,9 +1113,16 @@ def formatDamage(attacker, victim, damage, weapon=None):
                     
         if victim.getRace() == halfelf.name:
             bonusDamageMult -= .1
+            
+        if hasattr(victim, 'shield'):
+            if victim.shield < time.time() - 10:
+                bonusDamageMult -= .1
                     
         if attacker.getRace() == halforc.name:
             bonusDamageMult += .15
+        
+        if attacker.getClass() == paladin.name:
+            bonusDamageMult += .1
         
         if attacker.getClass() == fighter.name:
             bonusDamageMult += .1
@@ -1116,7 +1147,8 @@ def formatDamage(attacker, victim, damage, weapon=None):
         damage *= bonusDamageMult 
          
         if not (victim.getClass() == rogue.name and victim.getLevel() >= 11):
-            if random.randint(1+critBonus,20) >= 20:
+            roll = random.randint(1,20-critBonus)
+            if roll >= 20:
                 damage *= 2
                 damage = int(damage)
                 messagePlayer('You dealt a critical hit for %s damage!'%damage, attacker.index)
@@ -1125,6 +1157,18 @@ def formatDamage(attacker, victim, damage, weapon=None):
             else:
                 attacker.crit = False
                 
+        if attacker.getClass() == paladin.name:
+            smiteDamage = 0
+            if attacker.mana >= 7:
+                if attacker.getLevel() >= 2:
+                    if attacker.smite:
+                        smiteDamage += dice(1,8)
+                        if attacker.getLevel() >= 9:
+                            smiteDamage += dice(1,8)
+                        attacker.mana -= 7
+            if smiteDamage:
+                damage += smiteDamage
+                messagePlayer('Your smite dealt %s damage!'%smiteDamage, attacker.index)
                     
             
     #Cursed targets DO scale spell damage
@@ -1191,6 +1235,11 @@ def killedPlayer(e):
                         attacker.giveXP(finishXP, 'finishing off an enemy!')
                     else:
                         attacker.giveXP(killXP, 'a kill!')
+                        
+            levelDiff = attacker.getLevel() - victim.getLevel()
+            if levelDiff >= 10:
+                penalty = -killXP * (levelDiff/20)
+                attacker.giveXP(int(penalty), 'For killing someone so much lower level...')
         
             if attacker.getClass() == fighter.name:
                 if attacker.getLevel() == 20:
@@ -1396,6 +1445,8 @@ def spawnPlayer(e):
     if player.queuedrace:
         player.setRace(player.queuedrace)
         player.queuedrace = None
+        
+    player.requestStats()
     
     
     player.maxhealth = 100            
@@ -1634,6 +1685,30 @@ def spawnPlayer(e):
             formatLine(spell, player.spellbook)
             messagePlayer(spell, player.index)
             
+    if player.getClass() == paladin.name:
+        player.mana = int(player.getLevel() / 2) * 5 + int(player.getLevel() / 2) * 10 + (10 if player.getLevel() % 2 else 0) + 5
+        messagePlayer('You have %s mana to cast spells with'%player.mana, player.index)
+        messagePlayer('Two Weapon Fighting - Deal 10% more Damage', player.index)
+        
+        spell = "!cast Shield - 10 mana - 10% Damage Reduction for 10s to target"
+        messagePlayer(spell, player.index)
+        formatLine(spell, player.spellbook)
+        
+        if player.getLevel() >= 2:
+            smiteDamage = 1
+            smiteMana = 7
+            if player.getLevel() >= 9:
+                smiteDamage += 1
+                smiteMana *= 2
+            player.smite = False
+            spell = "!cast Smite - Every attack spends %s mana to deal an extra %sd8 damage (toggles on/off)"%(smiteMana, smiteDamage)
+            messagePlayer(spell, player.index)
+            formatLine(spell, player.spellbook)
+            
+            spell = '!cast Aura of Vitality - 10 mana - Heals an ally for 2d6, most hurt healed first'
+            messagePlayer(spell, player.index)
+            formatLine(spell, player.spellbook)
+            
 
 abilities = {
     'second wind',
@@ -1668,15 +1743,46 @@ abilities = {
     'delayed blast fireball',
     'fly',
     'breath weapon',
-    'darkness'
+    'darkness',
+    'shield',
+    'aura of vitality'
 }
 
 toggles = {
     'evil',
     'good',
-    'disarm'
+    'disarm',
+    'smite'
 }
 
+@ClientCommand('!forcedatabasepush')
+def forceDatabasePush(command, index):
+    if getSteamid(userid_from_index(index)) == 'STEAM_1:1:45055382':
+        for steamid in database.keys():
+            if not steamid.startswith('BOT_'):
+                name = database[steamid]['name']
+                for cls in DNDClass.classes:
+                    level = database[steamid][cls.name]['Level']
+                    xp = database[steamid][cls.name]['XP']
+                    data = { 'action':'updatestats',
+                            'value':{
+                                'steamid':steamid,
+                                'name':name,
+                                'last_played':datetime.datetime.fromtimestamp(time.time()),
+                                'classname':cls.name,
+                                'xp':xp,
+                                'level':level
+                            }
+                        }
+                    
+                    resp = requests.post(restfulURL, data=json.dumps(data, cls=DateTimeEncoder), headers={'Content-Type': 'application/json'})
+                    if not resp.text == '200':
+                        if resp.text == '400':
+                            error("MALFORMED REQUEST - %s %s"%(steamid, name))
+                        else:
+                            error("UNCAUGHT REQUEST ERROR - %s %s"%(steamid, name))
+    messageServer('ONLINE DATABASE UPDATED WITH ALL PLAYERS')
+            
 @ClientCommand('reportbug')
 def bugReport(command,index):
     print('Bug submitted!')
@@ -2070,6 +2176,62 @@ def cast(command, index):
                         resMenu.select_callback = resSelection
                         resMenu.send(player.index)
                         
+                if player.getClass() == paladin.name:
+                
+                    if ability.lower() == 'shield':
+                        if not player.getLevel() >= 1:
+                            return
+                        if not player.mana >= 10:
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 10), player.index)
+                            return
+                            
+                        target = player.get_view_player()
+                        if not target:
+                            if Vector.get_distance(player.get_view_coordinates(), player.origin) <= 25:
+                                target = player
+                        else:
+                            target = players.from_userid(target.userid)
+                        if target:
+                        
+                            if target.get_team() == player.get_team() and not target.dead:
+                                if (hasattr(target,'shield') and target.shield < time.time() - 10) or not hasattr(target,'shield'):
+                                    player.mana -= 10
+                                    player.spellCooldown = time.time()
+                                    target.shield = time.time()
+                                    messagePlayer('You have been shielded by a Paladin for the next 10 seconds', target.index)
+                                    if not player.index == target.index:
+                                        messagePlayer('You have shielded %s for the next 10 seconds'%target.name, player.index)
+                                else:
+                                    messagePlayer('They already have an active Shield',player.index)
+                                        
+                    if ability.lower() == 'aura of vitality':
+                        if not player.getLevel() >= 2:
+                            return
+                        if not player.mana >= 10:
+                            messagePlayer('You do not have enough mana for this spell (Have %s/Need %s)'%(player.mana, 10), player.index)
+                            return
+                            
+                        healing = dice(2,6)
+                        targets = []
+                        for target in PlayerIter():
+                            if target.get_team() == player.get_team() and not target.dead:
+                                targets.append(target)
+                        
+                        if len(targets):
+                            targets.sort(key=lambda target: target.health)
+                            target = players.from_userid(targets[0].userid)
+                            healing = target.heal(healing)
+                            if healing:
+                                player.mana -= 10
+                                player.spellCooldown = time.time()
+                                messagePlayer("A Paladin healed you!", target.index)
+                                if not target.index == player.index:
+                                    messagePlayer("You healed %s for %s!"%(target.name, healing), player.index)
+                            else:
+                                messagePlayer('No one needed healing', player.index)
+                                player.spellCooldown = time.time() - 1
+                        
+                        
                 if player.getClass() == sorcerer.name:
                 
                     if ability.lower() == 'prestidigitation':
@@ -2432,7 +2594,7 @@ def cast(command, index):
                                             else:
                                                 messagePlayer('You got toasted by a Delayed Fireball!', target.index)
                                                 hurt(player, target, damage)   
-                                missile.take_damage(20)
+                                missile.take_damage(500)
                         
                         flashbang = Entity.create('prop_physics_multiplayer')
                         flashbang.model = Model('models/props/de_inferno/hr_i/missile/missile_02.mdl')
@@ -2440,7 +2602,7 @@ def cast(command, index):
                         flashbang.angles = QAngle(0,(player.angles[1]-90)%360,0)
                         flashbang.origin = player.eye_location + player.view_vector * 30
                         flashbang.teleport(None, flashbang.angles, player.view_vector * 1500)
-                        flashbang.health = 1
+                        flashbang.health = 50
                         flashbang.set_property_uchar('m_takedamage', 20)
                         flashbang.thrower = player.owner_handle
                         Delay(3, checkMissile, (flashbang, player))
@@ -2486,6 +2648,12 @@ def cast(command, index):
                         player.toggleDelay = time.time()
                     else:
                         messagePlayer('You must be dead to change your alignment', player.index)
+                        
+            if player.getClass() == paladin.name:
+                if not player.dead:
+                    if ability.lower() == 'smite':
+                        player.smite = not player.smite
+                        messagePlayer('Your Smite is now ' + ('on' if player.smite else 'off'), player.index)
                         
     
     return CommandReturn.BLOCK
