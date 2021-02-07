@@ -513,7 +513,8 @@ class RPGPlayer(Player):
         
     def postStats(self):
         if not self.is_bot():
-            if restfulURL:
+            if restfulURL:         
+                
                 for cls in DNDClass.classes:
                     data = {'action':'updatestats',
                         'value' : {
@@ -527,11 +528,9 @@ class RPGPlayer(Player):
                         }
 
                     resp = requests.post(restfulURL, data=json.dumps(data, cls=DateTimeEncoder), headers={'Content-Type': 'application/json'})
-                    if not resp.text == '200':
-                        if resp.text == '400':
-                            error("MALFORMED REQUEST - %s %s"%(steamid, name))
-                        else:
-                            error("UNCAUGHT REQUEST ERROR - %s %s"%(steamid, name))
+                    if resp.status_code not in range(200,300):
+                        error("UNCAUGHT REQUEST ERROR - %s %s\n%s"%(getSteamid(self.userid), self.name, resp.status_code))
+                        return
                     
             
     def requestStats(self):
@@ -542,7 +541,9 @@ class RPGPlayer(Player):
                     'value':getSteamid(self.userid) 
                     } 
                 resp = requests.post(restfulURL, data=json.dumps(data, cls=DateTimeEncoder), headers={'Content-Type': 'application/json'})        
-                
+                if resp.status_code not in range(200,300):
+                    error("UNCAUGHT REQUEST ERROR - %s %s\n%s"%(getSteamid(self.userid), self.name, resp.status_code))
+                    return
                 if not 'server' in resp.text:
                     playerStats = json.loads(resp.text)
                     self.stats[self.getClass()]['Level'] = playerStats[self.getClass()]['Level']
@@ -850,6 +851,7 @@ def playerSay(e):
                     messagePlayer('%s don\'t use mana'%player.getClass(), player.index)
                     
             if e['text'].lower() == 'spells':
+                print(dir(player))
                 player.spellbook.send(player.index)
             
         if steamid == 'STEAM_1:1:45055382':
