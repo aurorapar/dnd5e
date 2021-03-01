@@ -14,6 +14,7 @@ from entities.entity import Entity
 from entities.entity import BaseEntity
 from entities.hooks import EntityCondition 
 from entities.hooks import EntityPreHook
+from entities.constants import DamageTypes
 from entities.constants import RenderMode
 from entities.constants import RenderEffects
 from entities import TakeDamageInfo
@@ -66,6 +67,17 @@ import time
 import datetime
 import traceback
 import requests
+
+try:
+    # Is Floating Damage Numbers installed on this server?
+    from fdn.core.colors import WHITE
+    from fdn.core.constants import DISTANCE_MULTIPLIER
+    from fdn.core.floating_number import FloatingNumber
+    from fdn.core.players import PlayerFDN
+except ImportError:
+    # Nope.
+    FloatingNumber = None
+
 
 database = {}
 databaseLocation = join(dirname(__file__), "dnd5e.db")
@@ -1064,7 +1076,14 @@ def preDamagePlayer(stack_data):
         if victim.team_index != attacker.team_index:
         
             info.damage = formatDamage(attacker, victim, info.damage, info.weapon)
-            
+
+            # Has FloatingNumber been successfully imported?
+            if FloatingNumber is not None:
+                # Is this a critical hit?
+                if attacker.crit:
+                    # Change the damage type so the FloatingNumber changes its
+                    # color to yellow.
+                    info.type = DamageTypes.AIRBOAT
             
         
                 
@@ -1074,6 +1093,21 @@ def hurt(attacker, victim, amount, spell=False):
 
     if victim.health > amount:        
         victim.health -= amount
+
+        # Has FloatingNumber been successfully imported?
+        if FloatingNumber is not None:
+            number_origin = PlayerFDN(victim.index).get_number_origin()
+            distance = number_origin.get_distance(attacker.origin)
+
+            FloatingNumber(
+                origin=number_origin,
+                number=str(amount),
+                color=WHITE,
+                angle=attacker.view_angle,
+                size=10 + distance * DISTANCE_MULTIPLIER,
+                recipient=attacker.userid
+            )
+
     else:
         amount = min(amount, victim.health)
         targetName = victim.target_name
@@ -1085,7 +1119,7 @@ def hurt(attacker, victim, amount, spell=False):
         entity.damage = amount
         entity.damage_type = 32
         entity.call_input('Hurt', activator=Player(attacker.index))
-        entity.remove
+        entity.remove()
         
         victim.target_name = targetName
         
